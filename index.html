@@ -20,11 +20,16 @@
   .red { background:var(--red); } .green { background:var(--green); } .blue { background:var(--blue); } .yellow { background:var(--yellow); }
   #faceoffQ, #question { font-size:3.8rem; margin:40px; padding:30px; background:rgba(255,255,0,0.2); border-radius:20px; text-align:center; min-height:120px; }
   #board { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:25px; max-width:1300px; margin:40px auto; }
-  .answer { background:#000080; border:8px solid white; border-radius:20px; padding:35px; font-size:2.8rem; position:relative; min-height:160px; transition:0.4s; cursor:pointer; }
-  .answer.revealed { background:#ffd700; color:black; }
-  .answer .num { position:absolute; top:10px; left:20px; font-size:3.5rem; }
-  .answer .txt { margin-top:60px; font-weight:bold; }
-  .answer .pts { position:absolute; bottom:15px; right:30px; font-size:4.5rem; font-weight:bold; }
+  .answer {
+    background:#000080; border:8px solid white; border-radius:20px; padding:35px;
+    font-size:4rem; text-align:center; line-height:140px; cursor:pointer;
+    transition:0.4s; position:relative;
+  }
+  .answer.revealed {
+    background:#ffd700; color:black; font-weight:bold;
+  }
+  .answer .num { position:absolute; top:15px; left:20px; font-size:3rem; color:#fff; }
+  .answer.revealed .num { color:#000; }
   #strikes { font-size:9rem; letter-spacing:30px; color:#ff1744; margin:40px; }
   .teamList { background:rgba(255,255,255,0.1); padding:20px; border-radius:15px; margin:10px; width:220px; text-align:center; }
   .leader { color:gold; font-weight:bold; }
@@ -37,7 +42,7 @@
 </head>
 <body>
 
-<div id="version">v3.1.0</div>
+<div id="version">v3.2.0</div>
 
 <!-- HOST SCREEN -->
 <div id="hostScreen" class="screen">
@@ -68,6 +73,7 @@
     <div id="board"></div>
     <div>
       <button class="bigBtn" onclick="startFaceoff()">START FACE-OFF</button>
+      <button class="bigBtn" style="background:#ffd700;color:black;" onclick="revealAll()">REVEAL ALL</button>
       <button onclick="nextRound()">NEXT ROUND</button>
       <button style="background:#ff1744;" onclick="location.reload()">RESET GAME</button>
     </div>
@@ -94,12 +100,11 @@
       <p style="font-size:3.5rem;">BUZZ NOW!</p>
       <button id="buzzBtn" class="buzzerBtn">BUZZ!</button>
     </div>
-    <input type="text" id="answerInput" style="display:none;" placeholder="Type answer here">
+    <input type="text" id="answerInput" style="display:none;" placeholder="Type your answer here">
   </div>
 </div>
 
 <script>
-// ====== REPLACE WITH YOUR FIREBASE CONFIG ======
 const firebaseConfig = {
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
@@ -109,7 +114,6 @@ const firebaseConfig = {
   messagingSenderId: "940458931322",
   appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
 };
-// =============================================
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -121,7 +125,7 @@ document.getElementById('playerScreen').style.display = isHost ? 'none' : 'flex'
 
 let myTeam = null, myName = null;
 
-// ==================== FACE-OFF QUESTIONS ====================
+// Face-off Questions
 const faceoffQuestions = [
   "What does PPE stand for?",
   "What does LOTO stand for?",
@@ -130,46 +134,50 @@ const faceoffQuestions = [
   "Name one item you must wear on a construction site."
 ];
 
-// ==================== PLAYER LOGIC ====================
+// Main Questions
+const mainQuestions = [
+  { q: "Name a common type of Personal Protective Equipment (PPE)", a: [
+    {t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:18},
+    {t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:5},{t:"Ear Plugs",p:2}
+  ]},
+  { q: "Name something that must be reported immediately", a: [
+    {t:"Accident/Injury",p:45},{t:"Near Miss",p:30},{t:"Unsafe Condition",p:15},
+    {t:"Chemical Spill",p:6},{t:"Fire",p:4}
+  ]}
+];
+
+// PLAYER
 if (!isHost) {
   document.querySelectorAll('#playerScreen .teamCard').forEach(btn => {
     btn.addEventListener('click', () => {
       myName = document.getElementById('playerName').value.trim() || 'Player';
       myTeam = btn.dataset.team;
-
-      const playerRef = gameRef.child(`teams/${myTeam}/players`).push();
-      playerRef.set({ name: myName });
-      playerRef.onDisconnect().remove();
-
-      gameRef.child(`teams/${myTeam}/leader`).transaction(val => val || myName);
+      const ref = gameRef.child(`teams/${myTeam}/players`).push();
+      ref.set({ name: myName }); ref.onDisconnect().remove();
+      gameRef.child(`teams/${myTeam}/leader`).transaction(v => v || myName);
 
       document.querySelectorAll('#playerScreen > *:not(#playerGame)').forEach(el => el.style.display = 'none');
       document.getElementById('playerGame').style.display = 'block';
       document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team`;
 
-      gameRef.child('state').on('value', snap => {
-        const state = snap.val() || 'waiting';
+      gameRef.child('state').on('value', s => {
+        const state = s.val() || 'waiting';
         document.getElementById('faceoffScreen').style.display = 'none';
         document.getElementById('answerInput').style.display = 'none';
-
         if (state === 'faceoff') {
-          gameRef.child('playingTeams').once('value', t => {
+          gameRef.child('playingTeams').once(t => {
             if ((t.val() || []).includes(myTeam)) {
-              gameRef.child(`teams/${myTeam}/leader`).once('value', l => {
-                if (l.val() === myName) {
-                  document.getElementById('faceoffScreen').style.display = 'block';
-                }
+              gameRef.child(`teams/${myTeam}/leader`).once(l => {
+                if (l.val() === myName) document.getElementById('faceoffScreen').style.display = 'block';
               });
             }
           });
         } else if (state === 'playing') {
-          gameRef.child('controlTeam').once('value', c => {
+          gameRef.child('controlTeam').once(c => {
             if (c.val() === myTeam) {
               document.getElementById('answerInput').style.display = 'block';
               document.getElementById('answerInput').focus();
               document.getElementById('statusMsg').textContent = 'YOUR TURN!';
-            } else {
-              document.getElementById('statusMsg').textContent = `${c.val()} playing`;
             }
           });
         }
@@ -183,7 +191,7 @@ if (!isHost) {
 
       document.getElementById('answerInput').addEventListener('keypress', e => {
         if (e.key === 'Enter' && e.target.value.trim()) {
-          gameRef.child('guesses').push({ team: myTeam, name: myName, guess: e.target.value.trim() });
+          gameRef.child('guesses').push({ team: myTeam, guess: e.target.value.trim().toLowerCase() });
           e.target.value = '';
         }
       });
@@ -191,27 +199,28 @@ if (!isHost) {
   });
 }
 
-// ==================== HOST LOGIC ====================
+// HOST
 if (isHost) {
-  ['RED','GREEN','BLUE','YELLOW'].forEach(team => {
-    gameRef.child(`teams/${team}`).on('value', snap => {
-      const data = snap.val() || {};
-      const players = Object.values(data.players || {});
-      const leader = data.leader || '—';
-      const list = players.length ? players.map(p => p.name === leader ? `<span class="leader">${p.name} ← LEADER</span>` : p.name).join('<br>') : '—';
-      document.getElementById(`${team.toLowerCase()}TeamList`).innerHTML = `${team} TEAM<br><small>${list}</small>`;
+  // Team lists
+  ['RED','GREEN','BLUE','YELLOW'].forEach(t => {
+    gameRef.child(`teams/${t}`).on('value', s => {
+      const d = s.val() || {};
+      const p = Object.values(d.players || {});
+      const l = d.leader || '—';
+      const list = p.length ? p.map(x => x.name === l ? `<b style="color:gold">${x.name} ← LEADER</b>` : x.name).join('<br>') : '—';
+      document.getElementById(`${t.toLowerCase()}TeamList`).innerHTML = `${t} TEAM<br><small>${list}</small>`;
     });
   });
 
   let selected = [];
-  document.querySelectorAll('#hostSetup .teamCard').forEach(card => {
-    card.onclick = () => {
-      const t = card.dataset.team;
-      if (card.classList.contains('selected')) {
-        card.classList.remove('selected');
+  document.querySelectorAll('#hostSetup .teamCard').forEach(c => {
+    c.onclick = () => {
+      const t = c.dataset.team;
+      if (c.classList.contains('selected')) {
+        c.classList.remove('selected');
         selected = selected.filter(x => x !== t);
       } else if (selected.length < 2) {
-        card.classList.add('selected');
+        c.classList.add('selected');
         selected.push(t);
       }
       document.getElementById('startGameBtn').disabled = selected.length !== 2;
@@ -229,48 +238,67 @@ if (isHost) {
     const q = faceoffQuestions[Math.floor(Math.random() * faceoffQuestions.length)];
     gameRef.child('currentFaceoffQuestion').set(q);
     gameRef.child('state').set('faceoff');
-    document.getElementById('faceoffQ').innerHTML = `<strong>FACE-OFF QUESTION:</strong><br><br>${q}`;
+    document.getElementById('faceoffQ').innerHTML = `<strong>FACE-OFF:</strong><br>${q}`;
     gameRef.child('buzz').remove();
   };
 
-  // Display face-off question when it changes
-  gameRef.child('currentFaceoffQuestion').on('value', snap => {
-    const q = snap.val();
-    if (q) {
-      document.getElementById('faceoffQ').innerHTML = `<strong>FACE-OFF QUESTION:</strong><br><br>${q}`;
-    }
+  gameRef.child('currentFaceoffQuestion').on('value', s => {
+    if (s.val()) document.getElementById('faceoffQ').innerHTML = `<strong>FACE-OFF:</strong><br>${s.val()}`;
   });
 
-  gameRef.child('buzz').on('value', snap => {
-    if (!snap.val()) return;
-    const b = snap.val();
+  gameRef.child('buzz').on('value', s => {
+    if (!s.val()) return;
+    const b = s.val();
     gameRef.child('controlTeam').set(b.team);
     gameRef.child('state').set('playing');
     document.getElementById('faceoffQ').textContent = `${b.team} WINS FACE-OFF!`;
-    loadQuestion();
+    loadCurrentQuestion();
     gameRef.child('buzz').remove();
   });
 
-  function loadQuestion() {
-    const q = { q: "Name a common type of PPE", a: [
-      {t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:18},
-      {t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:5},{t:"Ear Plugs",p:2}
-    ]};
+  function loadCurrentQuestion() {
+    const q = mainQuestions[0]; // Can be randomized later
+    gameRef.child('currentQuestion').set(q);
     document.getElementById('question').textContent = q.q;
     const board = document.getElementById('board');
     board.innerHTML = '';
-    q.a.forEach((ans,i) => {
+    q.a.forEach((ans, i) => {
       const div = document.createElement('div');
-      div.className = 'answer hidden';
-      div.innerHTML = `<div class="num">${i+1}</div><div class="txt">${ans.t.toUpperCase()}</div><div class="pts">${ans.p}</div>`;
-      div.onclick = () => { div.classList.remove('hidden'); div.classList.add('revealed'); };
+      div.className = 'answer';
+      div.innerHTML = `<div class="num">${i+1}</div>`;
+      div.onclick = () => {
+        div.classList.add('revealed');
+        div.innerHTML = `<div class="num">${i+1}</div>${ans.t.toUpperCase()}<br><small>${ans.p}</small>`;
+      };
       board.appendChild(div);
     });
   }
 
+  // Auto reveal on correct guess
+  gameRef.child('guesses').on('child_added', s => {
+    const g = s.val();
+    gameRef.child('currentQuestion').once(qsnap => {
+      const q = qsnap.val();
+      if (q && g.team === gameRef.child('controlTeam').once(c => c.val())) {
+        const match = q.a.findIndex(a => a.t.toLowerCase().includes(g.guess) || g.guess.includes(a.t.toLowerCase().split(' ')[0]));
+        if (match !== -1) {
+          const boxes = document.querySelectorAll('.answer');
+          if (boxes[match]) {
+            boxes[match].click();
+          }
+        }
+      }
+    });
+  });
+
+  window.revealAll = () => {
+    document.querySelectorAll('.answer').forEach(b => b.click());
+  };
+
   window.nextRound = () => {
     gameRef.child('state').set('ready');
     gameRef.child('currentFaceoffQuestion').remove();
+    gameRef.child('currentQuestion').remove();
     document.getElementById('faceoffQ').textContent = 'Ready for next face-off...';
     document.getElementById('board').innerHTML = '';
     document.getElementById('question').textContent = '';
