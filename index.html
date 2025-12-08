@@ -29,7 +29,7 @@
   .leader { color:gold; font-weight:bold; }
   button { padding:20px 50px; margin:15px; font-size:2.2rem; border:none; border-radius:15px; cursor:pointer; font-weight:bold; }
   .bigBtn { padding:30px 80px; font-size:3.5rem; background:var(--accent); color:black; }
-  .clearBtn { background:#ff1744; color:white; padding:20px 40px; font-size:2.5rem; margin:30px; border-radius:15px; }
+  .clearBtn { background:#ff1744 !important; color:white !important; padding:20px 40px; font-size:2.5rem; margin:30px; border-radius:15px; display:block !important; }
   .buzzerBtn { width:90vw; height:80vh; max-width:500px; max-height:500px; border-radius:50%; font-size:7rem; background:#ff1744; animation:pulse 1.8s infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
   input { padding:20px; font-size:2.8rem; width:90%; max-width:600px; margin:30px; border-radius:15px; text-align:center; }
@@ -37,12 +37,15 @@
 </head>
 <body>
 
-<div id="version">v3.2.1</div>
+<div id="version">v3.2.2</div>
 
 <!-- HOST SCREEN -->
 <div id="hostScreen" class="screen">
   <h1>SAFETY FEUD</h1>
   <p style="font-size:2.8rem;color:var(--accent);">HSE Edition</p>
+
+  <!-- CLEAR BUTTON - ALWAYS VISIBLE ON HOST -->
+  <button class="clearBtn" onclick="clearDatabase()">⚠️ CLEAR DATABASE & START FRESH ⚠️</button>
 
   <div style="display:flex; gap:30px; flex-wrap:wrap; justify-content:center; margin:20px;">
     <div class="teamList" id="redTeamList">RED TEAM<br><small>—</small></div>
@@ -53,7 +56,7 @@
 
   <div id="hostSetup">
     <div class="teamsGrid">
-      <div class="teamCard red" data-team="RED">RED TEAM</ALLOW</div>
+      <div class="teamCard red" data-team="RED">RED TEAM</div>
       <div class="teamCard green" data-team="GREEN">GREEN TEAM</div>
       <div class="teamCard blue" data-team="BLUE">BLUE TEAM</div>
       <div class="teamCard yellow" data-team="YELLOW">YELLOW TEAM</div>
@@ -70,7 +73,6 @@
       <button class="bigBtn" onclick="startFaceoff()">START FACE-OFF</button>
       <button class="bigBtn" style="background:#ffd700;color:black;" onclick="revealAll()">REVEAL ALL</button>
       <button onclick="nextRound()">NEXT ROUND</button>
-      <button class="clearBtn" onclick="clearDatabase()">CLEAR DATABASE & START FRESH</button>
     </div>
   </div>
 </div>
@@ -84,7 +86,7 @@
     <button class="teamCard red" data-team="RED">JOIN RED</button>
     <button class="teamCard green" data-team="GREEN">JOIN GREEN</button>
     <button class="teamCard blue" data-team="BLUE">JOIN BLUE</button>
-    <button class="teamCard yellow" data-team="YELLOW">JOIN YELLOW</button>
+    <button class="teamCard yellow" data-team="YELLOW">YELLOW TEAM</button>
   </div>
 
   <div id="playerGame" style="display:none; text-align:center; width:100%;">
@@ -100,7 +102,7 @@
 </div>
 
 <script>
-// Firebase Config (live version)
+// Firebase Config (use your own or the live one)
 const firebaseConfig = {
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
@@ -263,11 +265,11 @@ if (isHost) {
   };
 
   window.clearDatabase = () => {
-    if (confirm('Are you sure you want to clear the entire database and start fresh?')) {
+    if (confirm('⚠️ Are you sure? This will clear ALL teams, players, and game data!')) {
       gameRef.remove().then(() => {
-        alert('Database cleared! Refresh the page to start again.');
+        alert('✅ Database cleared! Refresh all devices to start fresh.');
         location.reload();
-      });
+      }).catch(err => alert('Error: ' + err.message));
     }
   };
 }
