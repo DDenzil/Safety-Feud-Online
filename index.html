@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Family Feud - Two-Team Multiplayer</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Arial Black', Arial, sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: white;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  #container {
+    width: 95%;
+    max-width: 1200px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 4.5rem;
+    margin: 10px;
+    text-shadow: 0 0 15px #fff;
+  }
+  .teams {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+    font-size: 2rem;
+  }
+  .team {
+    padding: 15px 30px;
+    border-radius: 15px;
+    min-width: 250px;
+  }
+  #team1 { background: #d32f2f; }
+  #team2 { background: #1976d2; }
+  .active { box-shadow: 0 0 30px gold; transform: scale(1.1); }
+  #question {
+    font-size: 2.2rem;
+    margin: 20px;
+    min-height: 80px;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+    margin: 30px auto;
+    max-width: 1000px;
+  }
+  .answer {
+    background: navy;
+    border: 6px solid white;
+    border-radius: 15px;
+    padding: 20px;
+    font-size: 2rem;
+    position: relative;
+    min-height: 100px;
+    cursor: pointer;
+    transition: all 0.4s;
+  }
+  .answer.hidden .text { visibility: hidden; }
+  .answer.revealed {
+    background: #ffd700;
+    color: black;
+  }
+  .answer .number { position: absolute; top: 5px; left: 12px; font-size: 1.8rem; }
+  .answer .text { margin-top: 30px; }
+  .answer .points { position: absolute; bottom: 8px; right: 15px; font-size: 2.5rem; font-weight: bold; }
+
+  #strikes { font-size: 6rem; letter-spacing: 15px; margin: 20px; }
+
+  .controls {
+    margin: 30px;
+  }
+  input {
+    padding: 15px;
+    font-size: 1.8rem;
+    width: 400px;
+    border-radius: 12px;
+    border: none;
+    text-align: center;
+  }
+  button {
+    padding: 15px 30px;
+    font-size: 1.6rem;
+    margin: 10px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .bigbtn { padding: 20px 50px; font-size: 2rem; background: #ff1744; }
+  .bigbtn:hover { background: #d50000; }
+
+  #startScreen, #faceOffScreen, #endScreen {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen">
+  <h1>FAMILY FEUD</h1>
+  <p style="font-size:3rem;">Two-Team Multiplayer Edition</p>
+  <input type="text" id="team1Name" placeholder="Enter Team 1 Name" value="Team Red">
+  <input type="text" id="team2Name" placeholder="Enter Team 2 Name" value="Team Blue">
+  <br>
+  <button class="bigbtn" onclick="startGame()">START GAME</button>
+</div>
+
+<!-- Face-Off Screen (who buzzes first) -->
+<div id="faceOffScreen" class="hidden">
+  <h1>FACE OFF!</h1>
+  <p style="font-size:3rem;">First to press your key wins control!</p>
+  <p style="font-size:5rem; margin:50px;">
+    <span style="color:#d32f2f;">A</span>  vs  <span style="color:#1976d2;">L</span>
+  </p>
+  <button class="bigbtn" onclick="nextRound()">SKIP FACE-OFF (for testing)</button>
+</div>
+
+<!-- Main Game -->
+<div id="container" class="hidden">
+  <h1 id="question">Loading question...</h1>
+
+  <div class="teams">
+    <div id="team1" class="team">
+      <div id="team1NameDisplay">Team 1</div>
+      <div>Score: <span id="score1">0</span></div>
+    </div>
+    <div id="team2" class="team">
+      <div id="team2NameDisplay">Team 2</div>
+      <div>Score: <span id="score2">0</span></div>
+    </div>
+  </div>
+
+  <div id="strikes">___</div>
+  <div id="board"></div>
+
+  <div class="controls">
+    <input type="text" id="guess" placeholder="Type answer and press Enter" autocomplete="off">
+    <br>
+    <button onclick="giveControl(1)">Give Control to Team 1</button>
+    <button onclick="giveControl(2)">Give Control to Team 2</button>
+    <button onclick="nextRound()">Next Round</button>
+  </div>
+</div>
+
+<!-- End Screen -->
+<div id="endScreen" class="hidden">
+  <h1>GAME OVER</h1>
+  <h2 id="winnerText"></h2>
+  <p style="font-size:3rem;">Final Scores</p>
+  <p id="finalScores"></p>
+  <button class="bigbtn" onclick="location.reload()">PLAY AGAIN</button>
+</div>
+
+<script>
+// Game state
+let questions = [
+  { q: "Name something you might find in a kitchen", answers: [
+      {text:"Refrigerator",p:35},{text:"Stove/Oven",p:25},{text:"Sink",p:15},
+      {text:"Microwave",p:10},{text:"Dishes",p:6},{text:"Table",p:5},{text:"Trash Can",p:4}
+    ]},
+  { q: "Name a reason people give for being late to work", answers: [
+      {text:"Traffic",p:40},{text:"Overslept",p:22},{text:"Sick",p:12},
+      {text:"Car Trouble",p:10},{text:"Kids",p:8},{text:"Weather",p:5}
+    ]},
+  { q: "Name a popular superhero", answers: [
+      {text:"Spider-Man",p:28},{text:"Batman",p:25},{text:"Superman",p:20},
+      {text:"Iron Man",p:12},{text:"Wonder Woman",p:8},{text:"Hulk",p:5}
+    ]},
+  { q: "Name something you do at the beach", answers: [
+      {text:"Swim",p:45},{text:"Sunbathe/Tan",p:20},{text:"Build Sandcastles",p:12},
+      {text:"Play Volleyball",p:8},{text:"Walk",p:7},{text:"Read",p:5}
+    ]},
+  { q: "Name a fruit you might put in a smoothie", answers: [
+      {text:"Banana",p:38},{text:"Strawberry",p:25},{text:"Blueberry",p:15},
+      {text:"Mango",p:8},{text:"Pineapple",p:7},{text:"Orange",p:5}
+    ]}
+];
+
+let currentQuestion, controllingTeam = 0, strikes = 0;
+let scores = [0, 0];
+let revealed = [];
+let usedQuestions = [];
+
+function startGame() {
+  document.getElementById('startScreen').classList.add('hidden');
+  const t1 = document.getElementById('team1Name').value || 'Team Red';
+  const t2 = document.getElementById('team2Name').value || 'Team Blue';
+  document.getElementById('team1NameDisplay').textContent = t1;
+  document.getElementById('team2NameDisplay').textContent = t2;
+  document.getElementById('container').classList.remove('hidden');
+  faceOff();
+}
+
+function faceOff() {
+  document.getElementById('faceOffScreen').classList.remove('hidden');
+  controllingTeam = 0;
+  strikes = 0;
+  revealed = [];
+  updateStrikes();
+  updateTeamDisplay();
+}
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('faceOffScreen').classList.contains('hidden')) return;
+  
+  if (e.key.toLowerCase() === 'a') { // Team 1 buzzes
+    giveControl(1);
+  } else if (e.key.toLowerCase() === 'l') { // Team 2 buzzes
+    giveControl(2);
+  }
+});
+
+function giveControl(team) {
+  if (controllingTeam > 0) return;
+  controllingTeam = team;
+  document.getElementById('faceOffScreen').classList.add('hidden');
+  updateTeamDisplay();
+  nextRound();
+}
+
+function nextRound() {
+  strikes = 0;
+  revealed = [];
+  updateStrikes();
+
+  // Pick a new question
+  if (usedQuestions.length >= questions.length) {
+    endGame();
+    return;
+  }
+  let idx;
+  do {
+    idx = Math.floor(Math.random() * questions.length);
+  } while (usedQuestions.includes(idx));
+  usedQuestions.push(idx);
+  
+  currentQuestion = questions[idx];
+  document.getElementById('question').textContent = currentQuestion.q;
+
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  currentQuestion.answers.forEach((a, i) => {
+    const div = document.createElement('div');
+    div.className = 'answer hidden';
+    div.innerHTML = `
+      <div class="number">${i+1}</div>
+      <div class="text">${a.text.toUpperCase()}</div>
+      <div class="points">${a.p}</div>
+    `;
+    div.onclick = () => reveal(i);
+    board.appendChild(div);
+  });
+
+  document.getElementById('guess').value = '';
+  document.getElementById('guess').focus();
+}
+
+function reveal(index) {
+  if (revealed.includes(index)) return;
+  revealed.push(index);
+  const el = document.querySelectorAll('#board .answer')[index];
+  el.classList.remove('hidden');
+  el.classList.add('revealed');
+
+  const points = currentQuestion.answers[index].p;
+  scores[controllingTeam-1] += points;
+  updateScores();
+
+  if (revealed.length === currentQuestion.answers.length) {
+    setTimeout(() => {
+      alert(`Team ${controllingTeam} cleared the board!`);
+      faceOff();
+    }, 800);
+  }
+}
+
+function submitGuess() {
+  const guess = document.getElementById('guess').value.trim().toLowerCase();
+  if (!guess || controllingTeam === 0) return;
+
+  let found = false;
+  currentQuestion.answers.forEach((a, i) => {
+    if (revealed.includes(i)) return;
+    if (a.text.toLowerCase().includes(guess) || guess.includes(a.text.toLowerCase())) {
+      reveal(i);
+      found = true;
+    }
+  });
+
+  if (!found) {
+    strikes++;
+    updateStrikes();
+    if (strikes >= 3) {
+      // Other team steals!
+      const winner = controllingTeam === 1 ? 2 : 1;
+      const totalPoints = currentQuestion.answers.reduce((s,a) => s + a.p, 0);
+      scores[winner-1] += totalPoints;
+      updateScores();
+      setTimeout(() => {
+        alert(`3 strikes! Team ${winner} steals ${totalPoints} points!`);
+        faceOff();
+      }, 600);
+    } else {
+      // Switch control to the other team
+      controllingTeam = controllingTeam === 1 ? 2 : 1;
+      updateTeamDisplay();
+      alert(`Wrong! Control passes to Team ${controllingTeam}`);
+    }
+  }
+
+  document.getElementById('guess').value = '';
+}
+
+function updateStrikes() {
+  const s = 'X'.repeat(strikes) + '_'.repeat(3 - strikes);
+  document.getElementById('strikes').textContent = s;
+}
+
+function updateScores() {
+  document.getElementById('score1').textContent = scores[0];
+  document.getElementById('score2').textContent = scores[1];
+}
+
+function updateTeamDisplay() {
+  document.getElementById('team1').classList.toggle('active', controllingTeam === 1);
+  document.getElementById('team2').classList.toggle('active', controllingTeam === 2);
+}
+
+function endGame() {
+  document.getElementById('container').classList.add('hidden');
+  const total1 = scores[0];
+  const total2 = scores[1];
+  let winner = total1 > total2 ? document.getElementById('team1NameDisplay').textContent :
+               total2 > total1 ? document.getElementById('team2NameDisplay').textContent : "It's a tie!";
+  document.getElementById('winnerText').textContent = total1 === total2 ? "IT'S A TIE!" : `${winner} WINS!`;
+  document.getElementById('finalScores').innerHTML = 
+    `${document.getElementById('team1NameDisplay').textContent}: ${total1}<br>
+     ${document.getElementById('team2NameDisplay').textContent}: ${total2}`;
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+// Enter to submit guess
+document.getElementById('guess').addEventListener('keypress', e => {
+  if (e.key === 'Enter') submitGuess();
+});
+</script>
+</body>
+</html>
