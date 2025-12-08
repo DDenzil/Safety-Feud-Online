@@ -35,44 +35,44 @@
   .bigBtn { padding:25px 60px; font-size:3rem; background:var(--accent); color:black; }
   .buzzerBtn { width:90vw; height:80vh; max-width:500px; max-height:500px; border-radius:50%; font-size:6rem; animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
-  .hidden { display:none !important; }
   input { padding:20px; font-size:2.5rem; width:90%; max-width:600px; margin:20px; border-radius:15px; text-align:center; }
+  .hidden { display:none !important; }
 </style>
 </head>
 <body>
 
-<!-- HOST VIEW (Projector) -->
+<!-- HOST VIEW -->
 <div id="hostView">
   <h1>SAFETY FEUD</h1>
   <p style="font-size:2.5rem;color:var(--accent);">HSE Edition</p>
 
-  <!-- Team Selection -->
   <div id="teamSelect" class="teamsGrid">
     <div class="teamCard red" data-team="RED">RED TEAM</div>
     <div class="teamCard green" data-team="GREEN">GREEN TEAM</div>
     <div class="teamCard blue" data-team="BLUE">BLUE TEAM</div>
     <div class="teamCard yellow" data-team="YELLOW">YELLOW TEAM</div>
   </div>
-  <button class="bigBtn" id="startGameBtn" onclick="startGame()" disabled>SELECT 2 TEAMS TO START</button>
+  <button class="bigBtn" id="startGameBtn" disabled>SELECT 2 TEAMS TO START</button>
 
-  <!-- Game Screen -->
   <div id="gameScreen" class="hidden">
-    <div id="faceoffQ"></div>
+    <div id="faceoffQ">Ready...</div>
     <div id="question"></div>
     <div id="strikes">___</div>
     <div id="wrongAnswers"></div>
     <div id="board"></div>
-    <button class="bigBtn" onclick="startFaceoff()">START FACE-OFF</button>
-    <button onclick="revealAll()">REVEAL ALL ANSWERS</button>
-    <button onclick="nextRound()">NEXT ROUND</button>
-    <button style="background:#ff1744;" onclick="resetGame()">RESET GAME</button>
+    <div>
+      <button class="bigBtn" onclick="startFaceoff()">START FACE-OFF</button>
+      <button onclick="nextRound()">NEXT ROUND</button>
+      <button style="background:#ff1744;" onclick="location.reload()">RESET</button>
+    </div>
   </div>
 </div>
 
-<!-- PLAYER VIEW (Phones) -->
-<div id="playerView" class="hidden">
+<!-- PLAYER VIEW -->
+<div id="playerView">
   <h1>SAFETY FEUD</h1>
-  <input type="text" id="playerName" placeholder="Your Name">
+  <p style="font-size:2rem;color:var(--accent);">Join Your Team</p>
+  <input type="text" id="playerName" placeholder="Your Name" style="margin:20px;">
   <div class="teamsGrid">
     <button class="teamCard red" data-team="RED">JOIN RED</button>
     <button class="teamCard green" data-team="GREEN">JOIN GREEN</button>
@@ -80,16 +80,16 @@
     <button class="teamCard yellow" data-team="YELLOW">JOIN YELLOW</button>
   </div>
 
-  <div id="waitingScreen" class="hidden">
-    <h2 id="welcomeMsg"></h2>
-    <p id="roleMsg" style="font-size:2rem;"></p>
-    <button id="buzzerBtn" class="hidden buzzerBtn">BUZZ!</button>
-    <input type="text" id="answerInput" class="hidden" placeholder="Type your answer...">
+  <div id="playerGame" class="hidden" style="text-align:center;width:100%;">
+    <h2 id="welcomeName"></h2>
+    <p id="statusMsg" style="font-size:2.5rem;margin:30px;"></p>
+    <button id="buzzBtn" class="buzzerBtn hidden">BUZZ!</button>
+    <input type="text" id="answerInput" class="hidden" placeholder="Type answer here">
   </div>
 </div>
 
 <script>
-// ====== REPLACE WITH YOUR FIREBASE CONFIG ======
+// ====== YOUR FIREBASE CONFIG (REPLACE THIS) ======
 const firebaseConfig = {
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
@@ -99,213 +99,164 @@ const firebaseConfig = {
   messagingSenderId: "940458931322",
   appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
 };
-// =============================================
+// ================================================
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const game = db.ref('safetyfeud');
 
-const isHost = location.search.includes('host');
+const isHost = location.search.includes('host') || screen.width > 1200;
+
+// Show correct view
 document.getElementById('hostView').style.display = isHost ? 'flex' : 'none';
 document.getElementById('playerView').style.display = isHost ? 'none' : 'flex';
 
 let myTeam = null, myName = null, isLeader = false;
 
-// HOST: Team Selection
-if (isHost) {
-  let selectedTeams = [];
-  document.querySelectorAll('.teamCard').forEach(card => {
-    card.onclick = () => {
-      const team = card.dataset.team;
-      if (card.classList.contains('selected')) {
-        card.classList.remove('selected');
-        selectedTeams = selectedTeams.filter(t => t !== team);
-      } else if (selectedTeams.length < 2) {
-        card.classList.add('selected');
-        selectedTeams.push(team);
-      }
-      document.getElementById('startGameBtn').disabled = selectedTeams.length !== 2;
-      game.child('playingTeams').set(selectedTeams);
-    };
-  });
-}
-
-window.startGame = () => {
-  document.getElementById('teamSelect').classList.add('hidden');
-  document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('gameScreen').classList.remove('hidden');
-  game.child('state').set('waiting');
-};
-
-// PLAYER: Join Team
+// ===================== PLAYER LOGIC =====================
 if (!isHost) {
   document.querySelectorAll('#playerView .teamCard').forEach(btn => {
-    btn.onclick = () => {
+    btn.addEventListener('click', () => {
       myName = document.getElementById('playerName').value.trim() || 'Player';
       myTeam = btn.dataset.team;
-      const ref = game.child(`teams/${myTeam}/players`).push();
-      ref.set({ name: myName });
-      ref.onDisconnect().remove();
+
+      // Join team
+      const playerRef = game.child(`teams/${myTeam}/players`).push();
+      playerRef.set({ name: myName });
+      playerRef.onDisconnect().remove();
 
       // Become leader if first
-      game.child(`teams/${myTeam}/leader`).once('value', s => {
+      game.child(`teams/${myTeam}/leader`).once('value').then(s => {
         if (!s.val()) {
           game.child(`teams/${myTeam}/leader`).set(myName);
           isLeader = true;
         }
       });
 
-      document.getElementById('playerView').innerHTML = `
-        <h2>Welcome ${myName}!</h2>
-        <p style="font-size:3rem;">Team: <span style="color:${myTeam}">${myTeam}</span></p>
-        <p id="roleMsg">Waiting for game...</p>
-        <button id="buzzerBtn" class="hidden buzzerBtn ${myTeam.toLowerCase()}">BUZZ!</button>
-        <input type="text" id="answerInput" class="hidden" placeholder="Type answer...">
-      `;
+      // Switch to game screen
+      document.querySelector('#playerView > *:not(#playerGame)').style.display = 'none';
+      document.getElementById('playerGame').classList.remove('hidden');
+      document.getElementById('welcomeName').textContent = `Welcome ${myName}! (${myTeam} Team)`;
+      document.getElementById('statusMsg').textContent = 'Waiting for host...';
 
-      listenToGame();
-    };
+      listenToGameState();
+    });
   });
 }
 
-function listenToGame() {
-  game.child('state').on('value', s => {
-    const state = s.val();
-    document.getElementById('buzzerBtn').classList.add('hidden');
+function listenToGameState() {
+  game.child('state').on('value', snap => {
+    const state = snap.val() || 'waiting';
+    document.getElementById('buzzBtn').classList.add('hidden');
     document.getElementById('answerInput').classList.add('hidden');
 
     if (state === 'faceoff' && isLeader) {
-      document.getElementById('buzzerBtn').classList.remove('hidden');
-      document.getElementById('roleMsg').textContent = 'Face-off! Buzz when ready!';
+      document.getElementById('buzzBtn').classList.remove('hidden');
+      document.getElementById('statusMsg').textContent = 'FACE-OFF! BUZZ NOW!';
     } else if (state === 'playing') {
-      game.child('controlTeam').once('value', c => {
-        if (c.val() === myTeam) {
+      game.child('controlTeam').once('value').then(s => {
+        const ctrl = s.val();
+        if (ctrl === myTeam) {
           document.getElementById('answerInput').classList.remove('hidden');
           document.getElementById('answerInput').focus();
-          document.getElementById('roleMsg').textContent = 'YOUR TEAM HAS CONTROL!';
+          document.getElementById('statusMsg').textContent = 'YOUR TEAM HAS CONTROL!';
         } else {
-          document.getElementById('roleMsg').textContent = `${c.val()} has control`;
+          document.getElementById('statusMsg').textContent = `${ctrl} has control`;
         }
       });
+    } else {
+      document.getElementById('statusMsg').textContent = 'Waiting for next round...';
     }
   });
 
-  // Buzz
-  document.getElementById('buzzerBtn').onclick = () => {
+  // Buzz button
+  document.getElementById('buzzBtn').onclick = () => {
     game.child('buzz').set({ team: myTeam, time: Date.now() });
+    document.getElementById('buzzBtn').textContent = 'BUZZED!';
+    document.getElementById('buzzBtn').disabled = true;
   };
 
-  // Submit answer
-  document.getElementById('answerInput').onkeypress = e => {
-    if (e.key === 'Enter') {
-      const guess = e.target.value.trim();
-      if (guess) {
-        game.child('guesses').push({ team: myTeam, guess });
-        e.target.value = '';
-      }
+  // Answer input
+  document.getElementById('answerInput').addEventListener('keypress', e => {
+    if (e.key === 'Enter' && e.target.value.trim()) {
+      game.child('guesses').push({
+        team: myTeam,
+        name: myName,
+        guess: e.target.value.trim().toLowerCase()
+      });
+      e.target.value = '';
     }
-  };
+  });
 }
 
-// Face-off Questions
-const faceoffQs = [
-  {q: "What does PPE stand for?", a: ["personal protective equipment", "ppe"]},
-  {q: "What does LOTO mean?", a: ["lockout tagout", "lock out tag out", "loto"]},
-  {q: "What color is a STOP sign on site?", a: ["red"]},
-  {q: "Name a common type of fire extinguisher", a: ["co2", "water", "foam", "powder", "carbon dioxide"]},
-  {q: "What should you do before lifting heavy?", a: ["risk assessment", "bend knees", "team lift", "manual handling"]},
-];
+// ===================== HOST LOGIC =====================
+if (isHost) {
+  let selected = [];
+  document.querySelectorAll('#teamSelect .teamCard').forEach(card => {
+    card.onclick = () => {
+      const team = card.dataset.team;
+      if (card.classList.contains('selected')) {
+        card.classList.remove('selected');
+        selected = selected.filter(t => t !== team);
+      } else if (selected.length < 2) {
+        card.classList.add('selected');
+        selected.push(team);
+      }
+      document.getElementById('startGameBtn').disabled = selected.length !== 2;
+      game.child('playingTeams').set(selected);
+    };
+  });
 
-let currentFaceoff = null;
-let currentQuestion = null;
+  window.startGame = () => {
+    document.getElementById('teamSelect').style.display = 'none';
+    document.getElementById('startGameBtn').style.display = 'none';
+    document.getElementById('gameScreen').classList.remove('hidden');
+    game.child('state').set('waiting');
+  };
 
-window.startFaceoff = () => {
-  currentFaceoff = faceoffQs[Math.floor(Math.random() * faceoffQs.length)];
-  document.getElementById('faceoffQ').textContent = "FACE-OFF: " + currentFaceoff.q;
-  game.child('state').set('faceoff');
-  game.child('buzz').remove();
-  game.child('faceoffAnswer').remove();
-};
+  window.startFaceoff = () => {
+    game.child('state').set('faceoff');
+    document.getElementById('faceoffQ').textContent = 'FACE-OFF IN PROGRESS!';
+    game.child('buzz').remove();
+  };
 
-game.child('buzz').on('value', snap => {
-  if (!snap.val() || game.child('state').once('value').then(s => s.val()) !== 'faceoff') return;
-  const buzz = snap.val();
-  game.child('buzzingTeam').set(buzz.team);
-  game.child('state').set('faceoff-answer');
-  document.getElementById('faceoffQ').textContent = `${buzz.team} buzzed first! Answer the question!`;
-});
-
-game.child('faceoffAnswer').on('value', snap => {
-  if (!snap.val()) return;
-  const ans = snap.val();
-  if (currentFaceoff.a.some(a => ans.answer.toLowerCase().includes(a))) {
-    game.child('controlTeam').set(ans.team);
+  game.child('buzz').on('value', snap => {
+    if (!snap.val()) return;
+    const buzz = snap.val();
+    game.child('controlTeam').set(buzz.team);
     game.child('state').set('playing');
-    loadNewQuestion();
-  } else {
-    const otherTeam = game.child('playingTeams').once('value').then(s => s.val().find(t => t !== ans.team));
-    otherTeam.then(t => {
-      document.getElementById('faceoffQ').textContent = `Wrong! ${t} gets a chance!`;
-      // In real game: allow second team to answer
+    document.getElementById('faceoffQ').textContent = `${buzz.team} WINS FACE-OFF!`;
+    loadQuestion();
+  });
+
+  function loadQuestion() {
+    const q = {
+      q: "Name a common type of PPE",
+      a: [
+        {t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:18},
+        {t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:5},{t:"Ear Plugs",p:2}
+      ]
+    };
+    document.getElementById('question').textContent = q.q;
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    q.a.forEach((ans, i) => {
+      const div = document.createElement('div');
+      div.className = 'answer hidden';
+      div.innerHTML = `<div class="num">${i+1}</div><div class="txt">${ans.t.toUpperCase()}</div><div class="pts">${ans.p}</div>`;
+      div.onclick = () => {
+        div.classList.remove('hidden');
+        div.classList.add('revealed');
+      };
+      board.appendChild(div);
     });
   }
-});
 
-// Main Questions
-const questions = [
-  {q:"Name a common type of Personal Protective Equipment (PPE)",a:[
-    {t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:18},
-    {t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:5},{t:"Ear Plugs",p:2}
-  ]},
-  {q:"Name something that must be reported immediately",a:[
-    {t:"Accident/Injury",p:45},{t:"Near Miss",p:30},{t:"Unsafe Condition",p:15},
-    {t:"Chemical Spill",p:6},{t:"Fire",p:4}
-  ]},
-  // Add more...
-];
-
-function loadNewQuestion() {
-  const q = questions[Math.floor(Math.random() * questions.length)];
-  currentQuestion = q;
-  document.getElementById('question').textContent = q.q;
-  document.getElementById('faceoffQ').classList.add('hidden');
-  document.getElementById('wrongAnswers').textContent = '';
-  const board = document.getElementById('board');
-  board.innerHTML = '';
-  q.a.forEach((ans, i) => {
-    const div = document.createElement('div');
-    div.className = 'answer hidden';
-    div.innerHTML = `<div class="num">${i+1}</div><div class="txt">${ans.t.toUpperCase()}</div><div class="pts">${ans.p}</div>`;
-    div.onclick = () => reveal(i);
-    board.appendChild(div);
-  });
-  game.child('strikes').set(0);
+  window.nextRound = () => {
+    game.child('state').set('waiting');
+    document.getElementById('faceoffQ').textContent = 'Ready for next face-off...';
+  };
 }
-
-function reveal(i) {
-  document.querySelectorAll('.answer')[i].classList.remove('hidden');
-  document.querySelectorAll('.answer')[i].classList.add('revealed');
-}
-
-window.revealAll = () => {
-  document.querySelectorAll('.answer').forEach(a => {
-    a.classList.remove('hidden');
-    a.classList.add('revealed');
-  });
-};
-
-window.nextRound = () => {
-  game.child('state').set('waiting');
-  document.getElementById('faceoffQ').classList.remove('hidden');
-  document.getElementById('faceoffQ').textContent = "Ready for next face-off...";
-};
-
-window.resetGame = () => confirm('Reset?') && location.reload();
-
-game.child('strikes').on('value', s => {
-  const n = s.val() || 0;
-  document.getElementById('strikes').textContent = 'X'.repeat(n) + '_'.repeat(3-n);
-});
 </script>
 </body>
 </html>
