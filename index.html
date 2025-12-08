@@ -8,7 +8,8 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <style>
   :root { --red:#d32f2f; --green:#2e7d32; --blue:#1565c0; --yellow:#f9a825; --accent:#00ff88; --bg:#0a192f; }
-  body { margin:0; font-family:'Arial Black',sans-serif; background:var(--bg); color:white; height:100vh; overflow:hidden; display:flex; justify-content:center; align-items:center; }
+  body { margin:0; font-family:'Arial Black',sans-serif; background:var(--bg); color:white; height:100vh; overflow:hidden; display:flex; justify-content:center; align-items:center; position:relative; }
+  #version { position:absolute; top:10px; right:15px; font-size:1.2rem; color:#aaa; z-index:100; }
   #hostView, #playerView { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   #playerView { background:#000; }
   h1 { font-size:5rem; color:var(--accent); text-shadow:0 0 30px var(--accent); margin:20px; }
@@ -24,6 +25,7 @@
   .answer .txt { margin-top:60px; font-weight:bold; }
   .answer .pts { position:absolute; bottom:15px; right:30px; font-size:4.5rem; font-weight:bold; }
   #strikes { font-size:9rem; letter-spacing:30px; color:#ff1744; margin:40px; }
+  .teamList { background:rgba(255,255,255,0.1); padding:15px; border-radius:15px; margin:10px; min-width:200px; }
   button { padding:20px 50px; margin:15px; font-size:2.2rem; border:none; border-radius:15px; cursor:pointer; font-weight:bold; }
   .bigBtn { padding:30px 80px; font-size:3.5rem; background:var(--accent); color:black; }
   .buzzerBtn { width:90vw; height:80vh; max-width:500px; max-height:500px; border-radius:50%; font-size:7rem; animation:pulse 1.8s infinite; }
@@ -34,10 +36,19 @@
 </head>
 <body>
 
+<div id="version">v2.8.1</div>
+
 <!-- HOST VIEW -->
 <div id="hostView">
   <h1>SAFETY FEUD</h1>
   <p style="font-size:2.8rem;color:var(--accent);">HSE Edition</p>
+
+  <div style="display:flex; gap:40px; margin:20px;">
+    <div class="teamList" id="redTeamList">RED TEAM<br>—</div>
+    <div class="teamList" id="greenTeamList">GREEN TEAM<br>—</div>
+    <div class="teamList" id="blueTeamList">BLUE TEAM<br>—</div>
+    <div class="teamList" id="yellowTeamList">YELLOW TEAM<br>—</div>
+  </div>
 
   <div id="teamSelect" class="teamsGrid">
     <div class="teamCard red" data-team="RED">RED TEAM</div>
@@ -118,16 +129,16 @@ if (!isHost) {
       playerRef.set({ name: myName });
       playerRef.onDisconnect().remove();
 
-      gameRef.child(`teams/${myTeam}/leader`).transaction(val => val || myName);
+      // Become leader if first
+      gameRef.child(`teams/${myTeam}/leader`).transaction(current => current || myName);
 
       document.querySelectorAll('#playerView > *:not(#playerGame)').forEach(el => el.style.display = 'none');
       document.getElementById('playerGame').classList.remove('hidden');
       document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team`;
 
-      // Listen for game state
+      // Listen to game state
       gameRef.child('state').on('value', snap => {
         const state = snap.val() || 'waiting';
-
         document.getElementById('faceoffScreen').classList.add('hidden');
         document.getElementById('answerInput').classList.add('hidden');
 
@@ -154,27 +165,21 @@ if (!isHost) {
             }
           });
         } else {
-          document.getElementById('statusMsg').textContent = 'Waiting for next round...';
+          document.getElementById('statusMsg').textContent = 'Waiting...';
         }
       });
     });
   });
 
-  // Buzz button
   document.getElementById('buzzBtn').addEventListener('click', () => {
     gameRef.child('buzz').set({ team: myTeam, time: Date.now() });
     document.getElementById('buzzBtn').textContent = 'BUZZED!';
     document.getElementById('buzzBtn').disabled = true;
   });
 
-  // Answer input
   document.getElementById('answerInput').addEventListener('keypress', e => {
     if (e.key === 'Enter' && e.target.value.trim()) {
-      gameRef.child('guesses').push({
-        team: myTeam,
-        name: myName,
-        guess: e.target.value.trim().toLowerCase()
-      });
+      gameRef.child('guesses').push({ team: myTeam, name: myName, guess: e.target.value.trim() });
       e.target.value = '';
     }
   });
@@ -182,8 +187,16 @@ if (!isHost) {
 
 // ==================== HOST LOGIC ====================
 if (isHost) {
-  let selectedTeams = [];
+  // Live team member display
+  ['RED','GREEN','BLUE','YELLOW'].forEach(team => {
+    gameRef.child(`teams/${team}/players`).on('value', snap => {
+      const players = snap.val();
+      const list = players ? Object.values(players).map(p => p.name).join('<br>') : '—';
+      document.getElementById(`${team.toLowerCase()}TeamList`).innerHTML = `${team} TEAM<br><small>${list}</small>`;
+    });
+  });
 
+  let selectedTeams = [];
   document.querySelectorAll('#teamSelect .teamCard').forEach(card => {
     card.onclick = () => {
       const team = card.dataset.team;
@@ -212,7 +225,6 @@ if (isHost) {
     gameRef.child('buzz').remove();
   };
 
-  // Listen for buzz
   gameRef.child('buzz').on('value', snap => {
     if (!snap.val()) return;
     const buzz = snap.val();
@@ -244,7 +256,6 @@ if (isHost) {
       };
       board.appendChild(div);
     });
-    gameRef.child('strikes').set(0);
   }
 
   window.nextRound = () => {
