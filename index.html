@@ -16,8 +16,7 @@
   .teamCard { padding:40px; border-radius:20px; text-align:center; font-size:2.8rem; cursor:pointer; transition:0.3s; border:8px solid transparent; }
   .teamCard.selected { border-color:gold; box-shadow:0 0 60px gold; transform:scale(1.08); }
   .red { background:var(--red); } .green { background:var(--green); } .blue { background:var(--blue); } .yellow { background:var(--yellow); }
-  #faceoffQ { font-size:4.5rem; margin:40px; padding:40px; background:rgba(255,255,0,0.2); border-radius:30px; text-align:center; }
-  #question { font-size:3.8rem; margin:40px; padding:30px; background:rgba(0,255,136,0.15); border-radius:20px; text-align:center; }
+  #faceoffQ, #question { font-size:3.8rem; margin:40px; padding:30px; background:rgba(0,255,136,0.15); border-radius:20px; text-align:center; min-height:120px; }
   #board { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:25px; max-width:1300px; margin:40px auto; }
   .answer { background:#000080; border:8px solid white; border-radius:20px; padding:35px; font-size:2.8rem; position:relative; min-height:160px; transition:0.4s; cursor:pointer; }
   .answer.revealed { background:#ffd700; color:black; }
@@ -77,7 +76,7 @@
     <h2 id="welcomeName"></h2>
     <p id="statusMsg" style="font-size:3rem;margin:40px;">Waiting for host...</p>
     <div id="faceoffScreen" class="hidden">
-      <h2 style="color:gold;font-size:4rem;">FACE-OFF!</h2>
+      <h2 style="color:gold;font-size:4.5rem;">FACE-OFF!</h2>
       <p style="font-size:3rem;">BUZZ AS FAST AS YOU CAN!</p>
       <button id="buzzBtn" class="buzzerBtn">BUZZ!</button>
     </div>
@@ -86,7 +85,7 @@
 </div>
 
 <script>
-// ====== YOUR FIREBASE CONFIG (REPLACE) ======
+// ====== REPLACE WITH YOUR FIREBASE CONFIG ======
 const firebaseConfig = {
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
@@ -119,70 +118,54 @@ if (!isHost) {
       playerRef.set({ name: myName });
       playerRef.onDisconnect().remove();
 
-      gameRef.child(`teams/${myTeam}/leader`).once('value', s => {
-        if (!s.val()) {
-          gameRef.child(`teams/${myTeam}/leader`).set(myName);
-          isLeader = true;
-        }
-      });
+      gameRef.child(`teams/${myTeam}/leader`).transaction(val => val || myName);
 
-      // Show game screen
       document.querySelectorAll('#playerView > *:not(#playerGame)').forEach(el => el.style.display = 'none');
       document.getElementById('playerGame').classList.remove('hidden');
-      document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team${isLeader ? ' (LEADER)' : ''}`;
+      document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team`;
 
-      listenToGame();
-    });
-  });
-}
+      // Listen for game state
+      gameRef.child('state').on('value', snap => {
+        const state = snap.val() || 'waiting';
 
-function listenToGame() {
-  // Listen to playing teams to know if my team is selected
-  gameRef.child('playingTeams').on('value', snap => {
-    const teams = snap.val() || [];
-    if (!teams.includes(myTeam)) {
-      document.getElementById('statusMsg').textContent = 'Your team is not playing this round';
-      document.getElementById('faceoffScreen').classList.add('hidden');
-      document.getElementById('answerInput').classList.add('hidden');
-    }
-  });
+        document.getElementById('faceoffScreen').classList.add('hidden');
+        document.getElementById('answerInput').classList.add('hidden');
 
-  // Main game state listener
-  gameRef.child('state').on('value', snap => {
-    const state = snap.val() || 'waiting';
-
-    document.getElementById('faceoffScreen').classList.add('hidden');
-    document.getElementById('answerInput').classList.add('hidden');
-
-    if (state === 'faceoff') {
-      gameRef.child('playingTeams').once('value', t => {
-        const teams = t.val() || [];
-        if (teams.includes(myTeam) && isLeader) {
-          document.getElementById('faceoffScreen').classList.remove('hidden');
-          document.getElementById('statusMsg').textContent = '';
-        }
-      });
-    } else if (state === 'playing') {
-      gameRef.child('controlTeam').once('value', c => {
-        if (c.val() === myTeam) {
-          document.getElementById('answerInput').classList.remove('hidden');
-          document.getElementById('answerInput').focus();
-          document.getElementById('statusMsg').textContent = 'YOUR TEAM HAS CONTROL!';
+        if (state === 'faceoff') {
+          gameRef.child('playingTeams').once('value', teamsSnap => {
+            const teams = teamsSnap.val() || [];
+            if (teams.includes(myTeam)) {
+              gameRef.child(`teams/${myTeam}/leader`).once('value', leaderSnap => {
+                if (leaderSnap.val() === myName) {
+                  document.getElementById('faceoffScreen').classList.remove('hidden');
+                  document.getElementById('statusMsg').textContent = '';
+                }
+              });
+            }
+          });
+        } else if (state === 'playing') {
+          gameRef.child('controlTeam').once('value', ctrlSnap => {
+            if (ctrlSnap.val() === myTeam) {
+              document.getElementById('answerInput').classList.remove('hidden');
+              document.getElementById('answerInput').focus();
+              document.getElementById('statusMsg').textContent = 'YOUR TURN!';
+            } else {
+              document.getElementById('statusMsg').textContent = `${ctrlSnap.val()} team playing`;
+            }
+          });
         } else {
-          document.getElementById('statusMsg').textContent = `${c.val()} team is playing`;
+          document.getElementById('statusMsg').textContent = 'Waiting for next round...';
         }
       });
-    } else {
-      document.getElementById('statusMsg').textContent = 'Waiting for next round...';
-    }
+    });
   });
 
   // Buzz button
-  document.getElementById('buzzBtn').onclick = () => {
+  document.getElementById('buzzBtn').addEventListener('click', () => {
     gameRef.child('buzz').set({ team: myTeam, time: Date.now() });
     document.getElementById('buzzBtn').textContent = 'BUZZED!';
     document.getElementById('buzzBtn').disabled = true;
-  };
+  });
 
   // Answer input
   document.getElementById('answerInput').addEventListener('keypress', e => {
@@ -220,15 +203,16 @@ if (isHost) {
     document.getElementById('teamSelect').style.display = 'none';
     document.getElementById('startGameBtn').style.display = 'none';
     document.getElementById('gameArea').classList.remove('hidden');
-    gameRef.child('state').set('waiting');
+    gameRef.child('state').set('ready');
   };
 
   window.startFaceoff = () => {
     gameRef.child('state').set('faceoff');
-    document.getElementById('faceoffQ').textContent = 'FACE-OFF IN PROGRESS!\nTeam leaders: BUZZ NOW!';
+    document.getElementById('faceoffQ').textContent = 'FACE-OFF!\nTeam leaders: BUZZ NOW!';
     gameRef.child('buzz').remove();
   };
 
+  // Listen for buzz
   gameRef.child('buzz').on('value', snap => {
     if (!snap.val()) return;
     const buzz = snap.val();
@@ -264,7 +248,7 @@ if (isHost) {
   }
 
   window.nextRound = () => {
-    gameRef.child('state').set('waiting');
+    gameRef.child('state').set('ready');
     document.getElementById('faceoffQ').textContent = 'Ready for next face-off...';
     document.getElementById('board').innerHTML = '';
     document.getElementById('question').textContent = '';
