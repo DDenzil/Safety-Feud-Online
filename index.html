@@ -8,95 +8,88 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <style>
   :root {
-    --red: #c62828; --green: #2e7d32; --blue: #1565c0; --yellow: #f9a825;
-    --bg: #0d1b2a; --card: #1b263b; --accent: #00e676;
+    --red: #d32f2f; --green: #2e7d32; --blue: #1565c0; --yellow: #f9a825;
+    --bg: #0a192f; --card: #16213e; --accent: #00ff88;
   }
   body { margin:0; font-family:'Arial Black',sans-serif; background:var(--bg); color:white; height:100vh; overflow:hidden; }
-  #phoneView, #hostView { width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:20px; box-sizing:border-box; }
-  #hostView { display:none; flex-direction:row; background:var(--bg); }
-  h1 { font-size:4.5rem; margin:10px; text-shadow:0 0 20px var(--accent); color:var(--accent); }
-  .layout { display:grid; grid-template-columns:1fr 2fr 1fr; height:100%; width:100%; gap:10px; }
-  .playersCol { padding:20px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:15px; }
-  .teamBox { background:var(--card); margin:10px 0; padding:15px; border-radius:12px; border-left:8px solid; }
-  .redBox    { border-color:var(--red); }
-  .greenBox  { border-color:var(--green); }
-  .blueBox   { border-color:var(--blue); }
-  .yellowBox { border-color:var(--yellow); }
-  .leader { background:gold !important; color:black; font-weight:bold; }
-  #boardArea { display:flex; flex-direction:column; justify-content:center; align-items:center; }
-  #question, #faceoffQuestion { font-size:3rem; text-align:center; margin:20px; padding:20px; background:rgba(0,255,65,0.15); border-radius:20px; min-height:100px; }
-  #board { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; max-width:1100px; width:100%; margin:20px 0; }
-  .answer { background:#000080; border:7px solid white; border-radius:20px; padding:25px; font-size:2rem; position:relative; min-height:130px; transition:.4s; cursor:pointer; }
+  #hostView, #playerView { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  #playerView { background:#000; }
+  h1 { font-size:5rem; margin:20px; color:var(--accent); text-shadow:0 0 30px var(--accent); }
+  .teamsGrid { display:grid; grid-template-columns:repeat(2,1fr); gap:30px; margin:30px; }
+  .teamCard { padding:30px; border-radius:20px; text-align:center; font-size:2.5rem; cursor:pointer; transition:0.3s; border:8px solid transparent; }
+  .teamCard.selected { border-color:gold; box-shadow:0 0 50px gold; transform:scale(1.05); }
+  .red { background:var(--red); }
+  .green { background:var(--green); }
+  .blue { background:var(--blue); }
+  .yellow { background:var(--yellow); }
+  #question, #faceoffQ { font-size:3.5rem; margin:40px; padding:30px; background:rgba(0,255,136,0.15); border-radius:20px; text-align:center; min-height:120px; }
+  #board { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; max-width:1200px; margin:30px auto; }
+  .answer { background:#000080; border:8px solid white; border-radius:20px; padding:30px; font-size:2.5rem; position:relative; min-height:140px; transition:0.4s; cursor:pointer; }
   .answer.revealed { background:#ffd700; color:black; }
-  .answer .num { position:absolute; top:10px; left:15px; font-size:2.2rem; }
-  .answer .txt { margin-top:40px; font-weight:bold; }
-  .answer .pts { position:absolute; bottom:10px; right:20px; font-size:3rem; font-weight:bold; }
-  #strikes { font-size:7rem; letter-spacing:20px; margin:30px; color:#ff1744; }
-  input { padding:15px; font-size:1.8rem; width:90%; max-width:500px; margin:15px; border-radius:12px; text-align:center; }
-  button { padding:15px 30px; margin:10px; font-size:1.8rem; border:none; border-radius:12px; cursor:pointer; }
-  .big { padding:25px 60px; font-size:2.5rem; background:var(--accent); color:black; font-weight:bold; }
+  .answer .num { position:absolute; top:10px; left:20px; font-size:3rem; }
+  .answer .txt { margin-top:50px; font-weight:bold; }
+  .answer .pts { position:absolute; bottom:15px; right:25px; font-size:4rem; font-weight:bold; }
+  #strikes { font-size:8rem; letter-spacing:25px; color:#ff1744; margin:30px; }
+  #wrongAnswers { margin:20px; font-size:2rem; color:#ff6b6b; min-height:100px; }
+  button { padding:18px 40px; margin:15px; font-size:2rem; border:none; border-radius:15px; cursor:pointer; font-weight:bold; }
+  .bigBtn { padding:25px 60px; font-size:3rem; background:var(--accent); color:black; }
+  .buzzerBtn { width:90vw; height:80vh; max-width:500px; max-height:500px; border-radius:50%; font-size:6rem; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
   .hidden { display:none !important; }
+  input { padding:20px; font-size:2.5rem; width:90%; max-width:600px; margin:20px; border-radius:15px; text-align:center; }
 </style>
 </head>
 <body>
 
-<!-- PHONE VIEW -->
-<div id="phoneView">
+<!-- HOST VIEW (Projector) -->
+<div id="hostView">
   <h1>SAFETY FEUD</h1>
-  <p style="font-size:2rem;color:var(--accent);">HSE Edition</p>
+  <p style="font-size:2.5rem;color:var(--accent);">HSE Edition</p>
 
-  <!-- Join Screen -->
-  <div id="joinScreen">
-    <input type="text" id="playerName" placeholder="Your Name">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;width:90%;max-width:600px;margin-top:20px;">
-      <button class="buzzer redB"    data-team="RED">RED</button>
-      <button class="buzzer greenB"  data-team="GREEN">GREEN</button>
-      <button class="buzzer blueB"   data-team="BLUE">BLUE</button>
-      <button class="buzzer yellowB" data-team="YELLOW">YELLOW</button>
-    </div>
+  <!-- Team Selection -->
+  <div id="teamSelect" class="teamsGrid">
+    <div class="teamCard red" data-team="RED">RED TEAM</div>
+    <div class="teamCard green" data-team="GREEN">GREEN TEAM</div>
+    <div class="teamCard blue" data-team="BLUE">BLUE TEAM</div>
+    <div class="teamCard yellow" data-team="YELLOW">YELLOW TEAM</div>
   </div>
+  <button class="bigBtn" id="startGameBtn" onclick="startGame()" disabled>SELECT 2 TEAMS TO START</button>
 
   <!-- Game Screen -->
   <div id="gameScreen" class="hidden">
-    <h2 id="welcomeMsg"></h2>
-    <p id="roleMsg" style="font-size:1.8rem;"></p>
-
-    <!-- Face-Off Phase -->
-    <div id="faceoffPhase" class="hidden">
-      <div id="faceoffQuestion"></div>
-      <input type="text" id="faceoffAnswer" placeholder="Type answer FAST!" autocomplete="off">
-      <p style="font-size:1.5rem;color:gold;">Only Team Leaders can answer!</p>
-    </div>
-
-    <!-- Main Round Phase -->
-    <div id="mainRoundPhase" class="hidden">
-      <div id="controlMsg" style="font-size:2.2rem; padding:20px; background:rgba(255,255,0,0.2); border-radius:15px; margin:20px;"></div>
-      <input type="text" id="mainAnswer" placeholder="Type your answer..." autocomplete="off">
-    </div>
+    <div id="faceoffQ"></div>
+    <div id="question"></div>
+    <div id="strikes">___</div>
+    <div id="wrongAnswers"></div>
+    <div id="board"></div>
+    <button class="bigBtn" onclick="startFaceoff()">START FACE-OFF</button>
+    <button onclick="revealAll()">REVEAL ALL ANSWERS</button>
+    <button onclick="nextRound()">NEXT ROUND</button>
+    <button style="background:#ff1744;" onclick="resetGame()">RESET GAME</button>
   </div>
 </div>
 
-<!-- HOST VIEW -->
-<div id="hostView">
-  <div class="layout">
-    <div class="playersCol" id="leftTeams"></div>
-    <div id="boardArea">
-      <h1 id="question">Waiting for players...</h1>
-      <div id="faceoffQuestionHost" class="hidden"></div>
-      <div id="strikes">___</div>
-      <div id="board"></div>
-      <div style="margin:30px;">
-        <button class="big" id="startFaceoffBtn" onclick="startFaceoff()">START FACE-OFF</button>
-        <button onclick="nextRound()">NEXT ROUND</button>
-        <button style="background:#ff1744;" onclick="resetGame()">RESET GAME</button>
-      </div>
-    </div>
-    <div class="playersCol" id="rightTeams"></div>
+<!-- PLAYER VIEW (Phones) -->
+<div id="playerView" class="hidden">
+  <h1>SAFETY FEUD</h1>
+  <input type="text" id="playerName" placeholder="Your Name">
+  <div class="teamsGrid">
+    <button class="teamCard red" data-team="RED">JOIN RED</button>
+    <button class="teamCard green" data-team="GREEN">JOIN GREEN</button>
+    <button class="teamCard blue" data-team="BLUE">JOIN BLUE</button>
+    <button class="teamCard yellow" data-team="YELLOW">JOIN YELLOW</button>
+  </div>
+
+  <div id="waitingScreen" class="hidden">
+    <h2 id="welcomeMsg"></h2>
+    <p id="roleMsg" style="font-size:2rem;"></p>
+    <button id="buzzerBtn" class="hidden buzzerBtn">BUZZ!</button>
+    <input type="text" id="answerInput" class="hidden" placeholder="Type your answer...">
   </div>
 </div>
 
 <script>
-// ====== YOUR FIREBASE CONFIG HERE ======
+// ====== REPLACE WITH YOUR FIREBASE CONFIG ======
 const firebaseConfig = {
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
@@ -106,254 +99,213 @@ const firebaseConfig = {
   messagingSenderId: "940458931322",
   appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
 };
-// ======================================
+// =============================================
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const gameRef = db.ref('safetyfeud');
+const game = db.ref('safetyfeud');
 
-const teams = ['RED','GREEN','BLUE','YELLOW'];
-let myTeam = null, myName = null, myId = null, isLeader = false;
-
-// Host detection
-const isHost = location.search.includes('host') || screen.width > 1000;
-document.getElementById('phoneView').style.display = isHost ? 'none' : 'flex';
+const isHost = location.search.includes('host');
 document.getElementById('hostView').style.display = isHost ? 'flex' : 'none';
+document.getElementById('playerView').style.display = isHost ? 'none' : 'flex';
 
-// Player Join
-if (!isHost) {
-  document.querySelectorAll('.buzzer').forEach(b => {
-    b.onclick = () => {
-      myName = document.getElementById('playerName').value.trim() || 'Player';
-      myTeam = b.dataset.team;
-      joinTeam();
+let myTeam = null, myName = null, isLeader = false;
+
+// HOST: Team Selection
+if (isHost) {
+  let selectedTeams = [];
+  document.querySelectorAll('.teamCard').forEach(card => {
+    card.onclick = () => {
+      const team = card.dataset.team;
+      if (card.classList.contains('selected')) {
+        card.classList.remove('selected');
+        selectedTeams = selectedTeams.filter(t => t !== team);
+      } else if (selectedTeams.length < 2) {
+        card.classList.add('selected');
+        selectedTeams.push(team);
+      }
+      document.getElementById('startGameBtn').disabled = selectedTeams.length !== 2;
+      game.child('playingTeams').set(selectedTeams);
     };
   });
 }
 
-function joinTeam() {
-  myId = Date.now().toString();
-  const playerRef = db.ref(`teams/${myTeam}/players/${myId}`);
-  playerRef.set({ name: myName });
-  playerRef.onDisconnect().remove();
-
-  // Check if I'm the first → become leader
-  db.ref(`teams/${myTeam}/leader`).once('value', snap => {
-    if (!snap.val()) {
-      db.ref(`teams/${myTeam}/leader`).set(myName);
-      isLeader = true;
-    }
-  });
-
-  document.getElementById('joinScreen').classList.add('hidden');
+window.startGame = () => {
+  document.getElementById('teamSelect').classList.add('hidden');
+  document.getElementById('startGameBtn').classList.add('hidden');
   document.getElementById('gameScreen').classList.remove('hidden');
-  document.getElementById('welcomeMsg').textContent = `Welcome ${myName}!`;
-  document.getElementById('roleMsg').innerHTML = isLeader 
-    ? '<span style="color:gold;">You are the TEAM LEADER!</span>' 
-    : 'Waiting for your team leader...';
+  game.child('state').set('waiting');
+};
 
-  listenToGameState();
+// PLAYER: Join Team
+if (!isHost) {
+  document.querySelectorAll('#playerView .teamCard').forEach(btn => {
+    btn.onclick = () => {
+      myName = document.getElementById('playerName').value.trim() || 'Player';
+      myTeam = btn.dataset.team;
+      const ref = game.child(`teams/${myTeam}/players`).push();
+      ref.set({ name: myName });
+      ref.onDisconnect().remove();
+
+      // Become leader if first
+      game.child(`teams/${myTeam}/leader`).once('value', s => {
+        if (!s.val()) {
+          game.child(`teams/${myTeam}/leader`).set(myName);
+          isLeader = true;
+        }
+      });
+
+      document.getElementById('playerView').innerHTML = `
+        <h2>Welcome ${myName}!</h2>
+        <p style="font-size:3rem;">Team: <span style="color:${myTeam}">${myTeam}</span></p>
+        <p id="roleMsg">Waiting for game...</p>
+        <button id="buzzerBtn" class="hidden buzzerBtn ${myTeam.toLowerCase()}">BUZZ!</button>
+        <input type="text" id="answerInput" class="hidden" placeholder="Type answer...">
+      `;
+
+      listenToGame();
+    };
+  });
 }
 
-function listenToGameState() {
-  gameRef.child('state').on('value', snap => {
-    const state = snap.val() || 'waiting';
-    document.getElementById('faceoffPhase').classList.add('hidden');
-    document.getElementById('mainRoundPhase').classList.add('hidden');
+function listenToGame() {
+  game.child('state').on('value', s => {
+    const state = s.val();
+    document.getElementById('buzzerBtn').classList.add('hidden');
+    document.getElementById('answerInput').classList.add('hidden');
 
-    if (state === 'faceoff') {
-      document.getElementById('faceoffPhase').classList.remove('hidden');
-      if (isLeader) {
-        document.getElementById('faceoffAnswer').focus();
-      } else {
-        document.getElementById('faceoffAnswer').disabled = true;
-      }
+    if (state === 'faceoff' && isLeader) {
+      document.getElementById('buzzerBtn').classList.remove('hidden');
+      document.getElementById('roleMsg').textContent = 'Face-off! Buzz when ready!';
     } else if (state === 'playing') {
-      document.getElementById('mainRoundPhase').classList.remove('hidden');
-      gameRef.child('controlTeam').once('value', s => {
-        const ctrl = s.val();
-        const msg = document.getElementById('controlMsg');
-        if (ctrl === myTeam) {
-          msg.innerHTML = '<span style="color:gold;">YOUR TEAM HAS CONTROL!</span><br>Type answers now!';
-          document.getElementById('mainAnswer').focus();
+      game.child('controlTeam').once('value', c => {
+        if (c.val() === myTeam) {
+          document.getElementById('answerInput').classList.remove('hidden');
+          document.getElementById('answerInput').focus();
+          document.getElementById('roleMsg').textContent = 'YOUR TEAM HAS CONTROL!';
         } else {
-          msg.textContent = `${ctrl} has control`;
+          document.getElementById('roleMsg').textContent = `${c.val()} has control`;
         }
       });
     }
   });
 
-  // Face-off answer
-  const foInput = document.getElementById('faceoffAnswer');
-  foInput.onkeypress = e => {
-    if (e.key === 'Enter' && isLeader) {
-      gameRef.child('faceoffAnswers').push({
-        team: myTeam,
-        name: myName,
-        answer: foInput.value.trim().toLowerCase(),
-        time: Date.now()
-      });
-      foInput.value = 'Sent!';
-      foInput.disabled = true;
-    }
+  // Buzz
+  document.getElementById('buzzerBtn').onclick = () => {
+    game.child('buzz').set({ team: myTeam, time: Date.now() });
   };
 
-  // Main round answer
-  const mainInput = document.getElementById('mainAnswer');
-  mainInput.onkeypress = e => {
+  // Submit answer
+  document.getElementById('answerInput').onkeypress = e => {
     if (e.key === 'Enter') {
-      const guess = mainInput.value.trim();
+      const guess = e.target.value.trim();
       if (guess) {
-        gameRef.child('guesses').push({
-          team: myTeam,
-          name: myName,
-          guess: guess.toLowerCase(),
-          time: Date.now()
-        });
-        mainInput.value = '';
+        game.child('guesses').push({ team: myTeam, guess });
+        e.target.value = '';
       }
     }
   };
 }
 
-// Host Logic
-if (isHost) {
-  teams.forEach(t => {
-    db.ref(`teams/${t}`).on('value', snap => {
-      const data = snap.val() || {};
-      const players = Object.values(data.players || {}).map(p => p.name);
-      const leader = data.leader || '—';
-      const col = ['RED','YELLOW'].includes(t) ? 'leftTeams' : 'rightTeams';
-      let html = `<div class="teamBox ${t.toLowerCase()}Box"><strong>${t} TEAM</strong><br>Leader: <span class="leader">${leader}</span><hr>`;
-      players.forEach(p => html += p === leader ? `<div class="leader">${p} (Leader)</div>` : `<div>${p}</div>`);
-      document.getElementById(col).innerHTML = html + '</div>';
-    });
-  });
-}
-
-// Face-Off Questions
-const faceoffQuestions = [
-  "What does PPE stand for?",
-  "What color is a fire extinguisher for electrical fires?",
-  "What should you do if you see a spill?",
-  "Name the document that allows hot work?",
-  "What does LOTO stand for?"
-];
-const faceoffAnswers = [
-  ["personal protective equipment", "ppe"],
-  ["black", "co2", "carbon dioxide"],
-  ["report it", "clean it", "barricade", "warning"],
-  ["permit to work", "hot work permit", "ptw"],
-  ["lockout tagout", "lock out tag out", "loto"]
+// Face-off Questions
+const faceoffQs = [
+  {q: "What does PPE stand for?", a: ["personal protective equipment", "ppe"]},
+  {q: "What does LOTO mean?", a: ["lockout tagout", "lock out tag out", "loto"]},
+  {q: "What color is a STOP sign on site?", a: ["red"]},
+  {q: "Name a common type of fire extinguisher", a: ["co2", "water", "foam", "powder", "carbon dioxide"]},
+  {q: "What should you do before lifting heavy?", a: ["risk assessment", "bend knees", "team lift", "manual handling"]},
 ];
 
-let currentFaceoffQ = 0;
-let currentMainQ = null;
+let currentFaceoff = null;
+let currentQuestion = null;
 
 window.startFaceoff = () => {
-  currentFaceoffQ = Math.floor(Math.random() * faceoffQuestions.length);
-  const q = faceoffQuestions[currentFaceoffQ];
-  gameRef.child('state').set('faceoff');
-  document.getElementById('faceoffQuestion').textContent = q;
-  document.getElementById('faceoffQuestionHost').textContent = `FACE-OFF: ${q}`;
-  document.getElementById('faceoffQuestionHost').classList.remove('hidden');
-  document.getElementById('startFaceoffBtn').classList.add('hidden');
-  gameRef.child('faceoffAnswers').remove();
+  currentFaceoff = faceoffQs[Math.floor(Math.random() * faceoffQs.length)];
+  document.getElementById('faceoffQ').textContent = "FACE-OFF: " + currentFaceoff.q;
+  game.child('state').set('faceoff');
+  game.child('buzz').remove();
+  game.child('faceoffAnswer').remove();
 };
 
-// Listen for face-off winner
-gameRef.child('faceoffAnswers').on('child_added', snap => {
+game.child('buzz').on('value', snap => {
+  if (!snap.val() || game.child('state').once('value').then(s => s.val()) !== 'faceoff') return;
+  const buzz = snap.val();
+  game.child('buzzingTeam').set(buzz.team);
+  game.child('state').set('faceoff-answer');
+  document.getElementById('faceoffQ').textContent = `${buzz.team} buzzed first! Answer the question!`;
+});
+
+game.child('faceoffAnswer').on('value', snap => {
+  if (!snap.val()) return;
   const ans = snap.val();
-  const correct = faceoffAnswers[currentFaceoffQ];
-  if (correct.some(a => ans.answer.includes(a))) {
-    gameRef.child('controlTeam').set(ans.team);
-    gameRef.child('state').set('playing');
-    document.getElementById('faceoffQuestionHost').classList.add('hidden');
-    document.getElementById('startFaceoffBtn').classList.remove('hidden');
-    alert(`${ans.team} wins control!`);
-    loadMainQuestion();
-    gameRef.child('faceoffAnswers').remove();
+  if (currentFaceoff.a.some(a => ans.answer.toLowerCase().includes(a))) {
+    game.child('controlTeam').set(ans.team);
+    game.child('state').set('playing');
+    loadNewQuestion();
+  } else {
+    const otherTeam = game.child('playingTeams').once('value').then(s => s.val().find(t => t !== ans.team));
+    otherTeam.then(t => {
+      document.getElementById('faceoffQ').textContent = `Wrong! ${t} gets a chance!`;
+      // In real game: allow second team to answer
+    });
   }
 });
 
-// Main Round Questions
-const mainQuestions = [
-  {q:"Name a common type of PPE",a:[{t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:15},{t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:6},{t:"Ear Protection",p:4}]},
-  {q:"Name a leading cause of workplace injuries",a:[{t:"Slips, Trips & Falls",p:42},{t:"Manual Handling",p:22},{t:"Struck by Object",p:15},{t:"Machinery",p:10},{t:"Chemical Exposure",p:6}]},
-  {q:"Name something that must be reported immediately",a:[{t:"Accident/Injury",p:50},{t:"Near Miss",p:25},{t:"Unsafe Act/Condition",p:15},{t:"Spill",p:6},{t:"Fire",p:4}]},
-  {q:"Name a common safety sign color meaning",a:[{t:"Red = Prohibition",p:35},{t:"Yellow = Warning",p:30},{t:"Blue = Mandatory",p:20},{t:"Green = Safe",p:15}]},
-  {q:"Name a step in the hierarchy of control",a:[{t:"Elimination",p:40},{t:"Substitution",p:25},{t:"Engineering Controls",p:15},{t:"Administrative",p:12},{t:"PPE",p:8}]}
+// Main Questions
+const questions = [
+  {q:"Name a common type of Personal Protective Equipment (PPE)",a:[
+    {t:"Safety Helmet",p:38},{t:"Safety Glasses",p:25},{t:"Gloves",p:18},
+    {t:"Steel Toe Boots",p:12},{t:"High-Vis Vest",p:5},{t:"Ear Plugs",p:2}
+  ]},
+  {q:"Name something that must be reported immediately",a:[
+    {t:"Accident/Injury",p:45},{t:"Near Miss",p:30},{t:"Unsafe Condition",p:15},
+    {t:"Chemical Spill",p:6},{t:"Fire",p:4}
+  ]},
+  // Add more...
 ];
 
-function loadMainQuestion() {
-  const q = mainQuestions[Math.floor(Math.random() * mainQuestions.length)];
-  currentMainQ = q;
+function loadNewQuestion() {
+  const q = questions[Math.floor(Math.random() * questions.length)];
+  currentQuestion = q;
   document.getElementById('question').textContent = q.q;
+  document.getElementById('faceoffQ').classList.add('hidden');
+  document.getElementById('wrongAnswers').textContent = '';
   const board = document.getElementById('board');
   board.innerHTML = '';
-  q.a.forEach((ans,i) => {
+  q.a.forEach((ans, i) => {
     const div = document.createElement('div');
     div.className = 'answer hidden';
     div.innerHTML = `<div class="num">${i+1}</div><div class="txt">${ans.t.toUpperCase()}</div><div class="pts">${ans.p}</div>`;
-    div.onclick = () => revealAnswer(i);
+    div.onclick = () => reveal(i);
     board.appendChild(div);
   });
-  gameRef.child('strikes').set(0);
-  gameRef.child('guesses').remove();
+  game.child('strikes').set(0);
 }
 
-function revealAnswer(i) {
-  const el = document.querySelectorAll('.answer')[i];
-  if (el.classList.contains('revealed')) return;
-  el.classList.remove('hidden');
-  el.classList.add('revealed');
-  const points = currentMainQ.a[i].p;
-  gameRef.child('controlTeam').once('value', s => {
-    const team = s.val();
-    db.ref(`teams/${team}/score`).transaction(v => (v||0) + points);
-  });
+function reveal(i) {
+  document.querySelectorAll('.answer')[i].classList.remove('hidden');
+  document.querySelectorAll('.answer')[i].classList.add('revealed');
 }
 
-// Handle guesses
-gameRef.child('guesses').on('child_added', snap => {
-  const g = snap.val();
-  gameRef.child('controlTeam').once('value', s => {
-    if (g.team !== s.val()) return;
-    let found = false;
-    currentMainQ.a.forEach((a,i) => {
-      if (document.querySelectorAll('.answer')[i].classList.contains('revealed')) return;
-      if (a.t.toLowerCase().includes(g.guess) || g.guess.includes(a.t.toLowerCase().split(' ')[0])) {
-        revealAnswer(i);
-        found = true;
-      }
-    });
-    if (!found) {
-      gameRef.child('strikes').transaction(v => (v||0) + 1);
-    }
-    snap.ref.remove();
+window.revealAll = () => {
+  document.querySelectorAll('.answer').forEach(a => {
+    a.classList.remove('hidden');
+    a.classList.add('revealed');
   });
-});
-
-gameRef.child('strikes').on('value', s => {
-  const strikes = s.val() || 0;
-  document.getElementById('strikes').textContent = 'X'.repeat(strikes) + '_'.repeat(3 - strikes);
-  if (strikes >= 3) {
-    setTimeout(() => {
-      alert("3 strikes! Other team can steal!");
-      // In real game, allow steal here
-      nextRound();
-    }, 1000);
-  }
-});
-
-window.nextRound = () => {
-  gameRef.child('state').set('waiting');
-  gameRef.child('controlTeam').set(null);
-  gameRef.child('strikes').set(0);
-  document.getElementById('startFaceoffBtn').classList.remove('hidden');
 };
 
-window.resetGame = () => confirm('Reset entire game?') && location.reload();
+window.nextRound = () => {
+  game.child('state').set('waiting');
+  document.getElementById('faceoffQ').classList.remove('hidden');
+  document.getElementById('faceoffQ').textContent = "Ready for next face-off...";
+};
+
+window.resetGame = () => confirm('Reset?') && location.reload();
+
+game.child('strikes').on('value', s => {
+  const n = s.val() || 0;
+  document.getElementById('strikes').textContent = 'X'.repeat(n) + '_'.repeat(3-n);
+});
 </script>
 </body>
 </html>
