@@ -37,14 +37,14 @@
 </head>
 <body>
 
-<div id="version">v3.2.2</div>
+<div id="version">v3.3.0</div>
 
 <!-- HOST SCREEN -->
 <div id="hostScreen" class="screen">
   <h1>SAFETY FEUD</h1>
   <p style="font-size:2.8rem;color:var(--accent);">HSE Edition</p>
 
-  <!-- CLEAR BUTTON - ALWAYS VISIBLE ON HOST -->
+  <!-- CLEAR BUTTON - ALWAYS VISIBLE -->
   <button class="clearBtn" onclick="clearDatabase()">⚠️ CLEAR DATABASE & START FRESH ⚠️</button>
 
   <div style="display:flex; gap:30px; flex-wrap:wrap; justify-content:center; margin:20px;">
@@ -86,7 +86,7 @@
     <button class="teamCard red" data-team="RED">JOIN RED</button>
     <button class="teamCard green" data-team="GREEN">JOIN GREEN</button>
     <button class="teamCard blue" data-team="BLUE">JOIN BLUE</button>
-    <button class="teamCard yellow" data-team="YELLOW">YELLOW TEAM</button>
+    <button class="teamCard yellow" data-team="YELLOW">JOIN YELLOW</button>
   </div>
 
   <div id="playerGame" style="display:none; text-align:center; width:100%;">
@@ -120,7 +120,7 @@ const isHost = location.search.includes('host') || screen.width > 1200;
 document.getElementById('hostScreen').style.display = isHost ? 'flex' : 'none';
 document.getElementById('playerScreen').style.display = isHost ? 'none' : 'flex';
 
-let myTeam = null, myName = null;
+let myTeam = null, myName = null, isLeader = false; // Add isLeader flag
 
 // Face-off & Main Questions
 const faceoffQuestions = ["What does PPE stand for?","What does LOTO stand for?","What color is a fire extinguisher for electrical fires?"];
@@ -134,12 +134,23 @@ if (!isHost) {
       myTeam = btn.dataset.team;
       const ref = gameRef.child(`teams/${myTeam}/players`).push();
       ref.set({ name: myName }); ref.onDisconnect().remove();
-      gameRef.child(`teams/${myTeam}/leader`).transaction(v => v || myName);
+      
+      // Set leader synchronously for first player
+      gameRef.child(`teams/${myTeam}/leader`).once('value', snap => {
+        if (!snap.val()) {
+          gameRef.child(`teams/${myTeam}/leader`).set(myName);
+          isLeader = true;
+          console.log(`DEBUG: ${myName} is now leader of ${myTeam}`);
+        } else {
+          isLeader = (snap.val() === myName);
+        }
+      });
 
       document.querySelectorAll('#playerScreen > *:not(#playerGame)').forEach(el => el.style.display = 'none');
       document.getElementById('playerGame').style.display = 'block';
-      document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team`;
+      document.getElementById('welcomeName').textContent = `${myName} – ${myTeam} Team${isLeader ? ' (LEADER)' : ''}`;
 
+      // Set listener ONCE after joining (fixed scope)
       gameRef.child('state').on('value', s => {
         const state = s.val() || 'waiting';
         document.getElementById('faceoffScreen').style.display = 'none';
@@ -147,9 +158,15 @@ if (!isHost) {
         if (state === 'faceoff') {
           gameRef.child('playingTeams').once(t => {
             if ((t.val() || []).includes(myTeam)) {
-              gameRef.child(`teams/${myTeam}/leader`).once(l => {
-                if (l.val() === myName) document.getElementById('faceoffScreen').style.display = 'block';
-              });
+              // Fallback re-check for leader with delay to handle sync
+              setTimeout(() => {
+                gameRef.child(`teams/${myTeam}/leader`).once(l => {
+                  if (l.val() === myName) {
+                    document.getElementById('faceoffScreen').style.display = 'block';
+                    console.log(`DEBUG: Buzzer shown for leader ${myName}`);
+                  }
+                });
+              }, 100); // Small delay for Firebase sync
             }
           });
         } else if (state === 'playing') {
@@ -179,7 +196,7 @@ if (!isHost) {
   });
 }
 
-// Host Logic
+// Host Logic (unchanged except version)
 if (isHost) {
   ['RED','GREEN','BLUE','YELLOW'].forEach(t => {
     gameRef.child(`teams/${t}`).on('value', s => {
