@@ -108,7 +108,7 @@ const firebaseConfig =
   projectId: "safety-feud-online",
   storageBucket: "safety-feud-online.firebasestorage.app",
   messagingSenderId: "940458931322",
-  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
+  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3" 
 };
 firebase.initializeApp(firebaseConfig);
 const gameRef = firebase.database().ref('safetyfeud');
@@ -123,14 +123,14 @@ const questions = [
 ];
 
 let currentQuestionIndex = null;
-let usedQuestions = new Set(); // Track used questions locally
+const usedQuestions = new Set();
 
-// Load used questions from Firebase on startup
+// Load used questions on startup
 gameRef.child('usedQuestions').once('value', snap => {
   const used = snap.val();
   if (used) {
-    Object.keys(used).forEach(q => {
-      const num = parseInt(q.replace('q', ''));
+    Object.keys(used).forEach(key => {
+      const num = parseInt(key.replace('q', ''));
       if (!isNaN(num)) {
         usedQuestions.add(num);
         document.getElementById(`q${num}`).classList.add('used');
@@ -141,35 +141,35 @@ gameRef.child('usedQuestions').once('value', snap => {
 });
 
 function selectQuestion(num) {
-  if (usedQuestions.has(num)) return; // Prevent re-select
+  if (usedQuestions.has(num)) return;
 
   currentQuestionIndex = num - 1;
   const q = questions[currentQuestionIndex];
-  
+
   document.getElementById('questionLabel').textContent = q.q;
   document.getElementById('answersContainer').style.display = 'block';
   document.getElementById('strikeButtons').style.display = 'grid';
   document.getElementById('revealAll').disabled = false;
   document.getElementById('clearTV').disabled = false;
 
-  // Mark as used
   usedQuestions.add(num);
   document.getElementById(`q${num}`).classList.add('used');
   document.getElementById(`q${num}`).disabled = true;
 
-  // Save to Firebase
-  gameRef.child('usedQuestions').child(`q${num}`).set(true);
-
   for (let i = 1; i <= 5; i++) {
     document.getElementById(`ans${i}`).textContent = q.a[i-1];
   }
+
+  const usedObj = {};
+  usedQuestions.forEach(n => usedObj[`q${n}`] = true);
 
   gameRef.set({
     question: q.q,
     answers: q.a.map((text, i) => ({ text, points: q.p[i], revealed: false, winner: null })),
     strikesA: 0,
     strikesB: 0,
-    currentState: 'playing'
+    currentState: 'playing',
+    usedQuestions: usedObj
   });
 }
 
@@ -216,24 +216,41 @@ function revealAll() {
   });
 }
 
-// CLEAR TV — only clears current round, keeps used questions
+// CLEAR TV — no popup, just works
 function clearTV() {
-  gameRef.update({
-    question: null,
-    answers: null,
-    strikesA: 0,
-    strikesB: 0,
-    currentState: 'ready'
+  gameRef.once('value').then(snap => {
+    const data = snap.val() || {};
+    const used = data.usedQuestions || {};
+
+    gameRef.set({ usedQuestions: used }).then(() => {
+      resetRoundUI();
+    });
   });
-  location.reload(); // Refresh to reset UI
 }
 
-// RESET — full reset, re-enables all questions
+function resetRoundUI() {
+  document.getElementById('questionLabel').textContent = "Select a question to begin...";
+  document.getElementById('answersContainer').style.display = 'none';
+  document.getElementById('strikeButtons').style.display = 'none';
+  document.getElementById('revealAll').disabled = true;
+  document.getElementById('clearTV').disabled = true;
+
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById(`ans${i}`).textContent = '-';
+    document.getElementById(`ans${i}`).style.background = '';
+    document.getElementById(`ans${i}`).style.color = '';
+    document.getElementById(`winA${i}`).disabled = false;
+    document.getElementById(`winB${i}`).disabled = false;
+  }
+
+  document.getElementById('strikesA').textContent = '0';
+  document.getElementById('strikesB').textContent = '0';
+  document.querySelectorAll('.strike-btn').forEach(btn => btn.disabled = false);
+}
+
 function resetGame() {
   if (confirm("Full reset? All questions will be re-enabled.")) {
-    gameRef.remove().then(() => {
-      location.reload();
-    });
+    gameRef.remove().then(() => location.reload());
   }
 }
 </script>
