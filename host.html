@@ -15,6 +15,7 @@
   .q-btn { padding:20px 40px; font-size:2rem; background:var(--btn); color:white; border:none; border-radius:12px; cursor:pointer; }
   .q-btn:hover { background:var(--hover); }
   .q-btn:disabled { background:#333; cursor:not-allowed; opacity:0.5; }
+  .q-btn.used { background:#10b981; opacity:0.8; }
   #questionLabel { font-size:3rem; text-align:center; margin:40px 0; padding:30px; background:#1e293b; border-radius:16px; min-height:120px; }
   .answer-row { display:grid; grid-template-columns:1fr 120px 120px; gap:15px; margin:15px 0; align-items:center; }
   .answer-text { font-size:2.5rem; background:#1e293b; padding:20px; border-radius:12px; text-align:center; }
@@ -99,15 +100,14 @@
 </div>
 
 <script>
-const firebaseConfig = 
-{ 
+const firebaseConfig = { 
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
   databaseURL: "https://safety-feud-online-default-rtdb.firebaseio.com",
   projectId: "safety-feud-online",
   storageBucket: "safety-feud-online.firebasestorage.app",
   messagingSenderId: "940458931322",
-  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
+  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"  
 };
 firebase.initializeApp(firebaseConfig);
 const gameRef = firebase.database().ref('safetyfeud');
@@ -133,8 +133,9 @@ function selectQuestion(num) {
   document.getElementById('revealAll').disabled = false;
   document.getElementById('clearTV').disabled = false;
 
-  document.querySelectorAll('.q-btn').forEach(b => b.disabled = true);
-  document.getElementById(`q${num}`).style.background = '#10b981';
+  // Mark question as used
+  document.getElementById(`q${num}`).classList.add('used');
+  document.getElementById(`q${num}`).disabled = true;
 
   for (let i = 1; i <= 5; i++) {
     document.getElementById(`ans${i}`).textContent = q.a[i-1];
@@ -145,7 +146,8 @@ function selectQuestion(num) {
     answers: q.a.map((text, i) => ({ text, points: q.p[i], revealed: false, winner: null })),
     strikesA: 0,
     strikesB: 0,
-    currentState: 'playing'
+    currentState: 'playing',
+    usedQuestions: firebase.database.ServerValue.increment(1)
   });
 }
 
@@ -155,6 +157,7 @@ function awardAnswer(row, team) {
   ansEl.style.color = 'white';
   ansEl.textContent += ` → ${team} WINS`;
 
+  // Disable both win buttons for this row
   document.getElementById(`winA${row}`).disabled = true;
   document.getElementById(`winB${row}`).disabled = true;
 
@@ -164,9 +167,21 @@ function awardAnswer(row, team) {
 function addStrike(team, num) {
   const current = parseInt(document.getElementById(`strikes${team}`).textContent);
   if (current >= 3) return;
-  document.getElementById(`strikes${team}`).textContent = current + 1;
+
+  const newCount = current + 1;
+  document.getElementById(`strikes${team}`).textContent = newCount;
   document.getElementById(`strike${team}${num}`).disabled = true;
-  gameRef.child(`strikes${team}`).set(current + 1);
+
+  gameRef.child(`strikes${team}`).set(newCount);
+
+  // If 3 strikes → disable ALL win buttons for that team
+  if (newCount === 3) {
+    const prefix = team === 'A' ? 'winA' : 'winB';
+    for (let i = 1; i <= 5; i++) {
+      const btn = document.getElementById(`${prefix}${i}`);
+      if (!btn.disabled) btn.disabled = true;
+    }
+  }
 }
 
 function revealAll() {
@@ -187,7 +202,11 @@ function clearTV() {
 }
 
 function resetGame() {
-  if (confirm("Reset everything?")) location.reload();
+  if (confirm("Reset everything? All used questions will be re-enabled.")) {
+    gameRef.remove().then(() => {
+      location.reload();
+    });
+  }
 }
 </script>
 </body>
