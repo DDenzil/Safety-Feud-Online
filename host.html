@@ -100,14 +100,15 @@
 </div>
 
 <script>
-const firebaseConfig = { 
+const firebaseConfig = 
+{
   apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
   authDomain: "safety-feud-online.firebaseapp.com",
   databaseURL: "https://safety-feud-online-default-rtdb.firebaseio.com",
   projectId: "safety-feud-online",
   storageBucket: "safety-feud-online.firebasestorage.app",
   messagingSenderId: "940458931322",
-  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"  
+  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
 };
 firebase.initializeApp(firebaseConfig);
 const gameRef = firebase.database().ref('safetyfeud');
@@ -122,8 +123,26 @@ const questions = [
 ];
 
 let currentQuestionIndex = null;
+let usedQuestions = new Set(); // Track used questions locally
+
+// Load used questions from Firebase on startup
+gameRef.child('usedQuestions').once('value', snap => {
+  const used = snap.val();
+  if (used) {
+    Object.keys(used).forEach(q => {
+      const num = parseInt(q.replace('q', ''));
+      if (!isNaN(num)) {
+        usedQuestions.add(num);
+        document.getElementById(`q${num}`).classList.add('used');
+        document.getElementById(`q${num}`).disabled = true;
+      }
+    });
+  }
+});
 
 function selectQuestion(num) {
+  if (usedQuestions.has(num)) return; // Prevent re-select
+
   currentQuestionIndex = num - 1;
   const q = questions[currentQuestionIndex];
   
@@ -133,9 +152,13 @@ function selectQuestion(num) {
   document.getElementById('revealAll').disabled = false;
   document.getElementById('clearTV').disabled = false;
 
-  // Mark question as used
+  // Mark as used
+  usedQuestions.add(num);
   document.getElementById(`q${num}`).classList.add('used');
   document.getElementById(`q${num}`).disabled = true;
+
+  // Save to Firebase
+  gameRef.child('usedQuestions').child(`q${num}`).set(true);
 
   for (let i = 1; i <= 5; i++) {
     document.getElementById(`ans${i}`).textContent = q.a[i-1];
@@ -146,8 +169,7 @@ function selectQuestion(num) {
     answers: q.a.map((text, i) => ({ text, points: q.p[i], revealed: false, winner: null })),
     strikesA: 0,
     strikesB: 0,
-    currentState: 'playing',
-    usedQuestions: firebase.database.ServerValue.increment(1)
+    currentState: 'playing'
   });
 }
 
@@ -157,7 +179,6 @@ function awardAnswer(row, team) {
   ansEl.style.color = 'white';
   ansEl.textContent += ` → ${team} WINS`;
 
-  // Disable both win buttons for this row
   document.getElementById(`winA${row}`).disabled = true;
   document.getElementById(`winB${row}`).disabled = true;
 
@@ -174,7 +195,6 @@ function addStrike(team, num) {
 
   gameRef.child(`strikes${team}`).set(newCount);
 
-  // If 3 strikes → disable ALL win buttons for that team
   if (newCount === 3) {
     const prefix = team === 'A' ? 'winA' : 'winB';
     for (let i = 1; i <= 5; i++) {
@@ -196,13 +216,21 @@ function revealAll() {
   });
 }
 
+// CLEAR TV — only clears current round, keeps used questions
 function clearTV() {
-  gameRef.remove();
-  location.reload();
+  gameRef.update({
+    question: null,
+    answers: null,
+    strikesA: 0,
+    strikesB: 0,
+    currentState: 'ready'
+  });
+  location.reload(); // Refresh to reset UI
 }
 
+// RESET — full reset, re-enables all questions
 function resetGame() {
-  if (confirm("Reset everything? All used questions will be re-enabled.")) {
+  if (confirm("Full reset? All questions will be re-enabled.")) {
     gameRef.remove().then(() => {
       location.reload();
     });
