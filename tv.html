@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Safety Feud - TV Display (Centered + Tiny Fonts)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    margin:0; padding:0; background:#0a0a1f;
+    height:100vh; width:100vw;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Arial Black',sans-serif;
+    color:white;
+  }
+
+  .game-container {
+    width:1204px; height:962px;
+    background:#0a0a1f;
+    position:relative;
+    box-shadow:0 0 60px rgba(0,255,136,0.3);
+    border-radius:20px;
+    overflow:hidden;
+  }
+
+  table {
+    width:100%; height:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+
+  /* Row Heights — total exactly 962px */
+  tr.header      { height:170px; }
+  tr.strikes     { height:80px; }
+  tr.answer      { height:90px; }
+  tr.spacer      { height:52px; }
+  tr.total       { height:90px; }
+
+  td { text-align:center; vertical-align:middle; }
+
+  /* Header - tiny */
+  .team-header {
+    background:#1e40af; border-radius:16px;
+    font-size:32px; font-weight:bold;
+  }
+  #questionHeader {
+    background:#172554; border-radius:20px;
+    font-size:24px; padding:10px;
+    line-height:1.2;
+  }
+
+  /* Strikes - tiny */
+  .strikes-container {
+    width:100%; height:100%;
+    display:flex; justify-content:center; align-items:center;
+    gap:280px;
+  }
+  .strike-group { display:flex; gap:30px; }
+  .strike {
+    font-size:34px; opacity:0.15; transition:opacity 0.5s;
+  }
+  .strike.active {
+    opacity:1; color:#ef4444;
+    text-shadow:0 0 20px #ef4444;
+  }
+
+  /* Answer Rows - extremely small */
+  .score-cell {
+    background:#1e40af; border-radius:12px;
+    font-size:28px; font-weight:bold;
+  }
+  .answer-cell {
+    background:#1e293b; border-radius:16px;
+    font-size:26px;
+    transition:all 0.8s;
+  }
+  .answer-cell.revealed {
+    background:#f59e0b; color:black; font-weight:bold;
+    font-size:30px;
+  }
+
+  /* Total Score - tiny */
+  .total-container {
+    width:100%; height:100%;
+    display:flex; justify-content:space-between;
+    padding:0 160px;
+  }
+  .total-cell {
+    background:#1e40af; border-radius:16px;
+    width:360px; height:90px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    font-size:18px;
+  }
+  .total-cell span {
+    font-size:38px; margin-top:4px;
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div class="game-container">
+
+<table>
+  <tr class="header">
+    <td width="240" class="team-header">TEAM A</td>
+    <td id="questionHeader">Waiting for question...</td>
+    <td width="240" class="team-header">TEAM B</td>
+  </tr>
+
+  <tr class="strikes">
+    <td colspan="3">
+      <div class="strikes-container">
+        <div class="strike-group">
+          <div class="strike" id="strikeA1">X</div>
+          <div class="strike" id="strikeA2">X</div>
+          <div class="strike" id="strikeA3">X</div>
+        </div>
+        <div class="strike-group">
+          <div class="strike" id="strikeB1">X</div>
+          <div class="strike" id="strikeB2">X</div>
+          <div class="strike" id="strikeB3">X</div>
+        </div>
+      </div>
+    </td>
+  </tr>
+
+  <tr class="answer">
+    <td class="score-cell" id="scoreA1"></td>
+    <td class="answer-cell" id="answer1"></td>
+    <td class="score-cell" id="scoreB1"></td>
+  </tr>
+  <tr class="answer">
+    <td class="score-cell" id="scoreA2"></td>
+    <td class="answer-cell" id="answer2"></td>
+    <td class="score-cell" id="scoreB2"></td>
+  </tr>
+  <tr class="answer">
+    <td class="score-cell" id="scoreA3"></td>
+    <td class="answer-cell" id="answer3"></td>
+    <td class="score-cell" id="scoreB3"></td>
+  </tr>
+  <tr class="answer">
+    <td class="score-cell" id="scoreA4"></td>
+    <td class="answer-cell" id="answer4"></td>
+    <td class="score-cell" id="scoreB4"></td>
+  </tr>
+  <tr class="answer">
+    <td class="score-cell" id="scoreA5"></td>
+    <td class="answer-cell" id="answer5"></td>
+    <td class="score-cell" id="scoreB5"></td>
+  </tr>
+
+  <tr class="spacer"><td colspan="3"></td></tr>
+
+  <tr class="total">
+    <td colspan="3">
+      <div class="total-container">
+        <div class="total-cell">
+          TOTAL SCORE TEAM A<br><span id="totalA">0</span>
+        </div>
+        <div class="total-cell">
+          TOTAL SCORE TEAM B<br><span id="totalB">0</span>
+        </div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+<script>
+// YOUR FIREBASE CONFIG
+const firebaseConfig = 
+{ 
+  apiKey: "AIzaSyCOVAn8yy3f6cGonaLNZMcFgvli-5nfu6M",
+  authDomain: "safety-feud-online.firebaseapp.com",
+  databaseURL: "https://safety-feud-online-default-rtdb.firebaseio.com",
+  projectId: "safety-feud-online",
+  storageBucket: "safety-feud-online.firebasestorage.app",
+  messagingSenderId: "940458931322",
+  appId: "1:940458931322:web:7f107ebe8cc761d86b37c3"
+};
+firebase.initializeApp(firebaseConfig);
+const gameRef = firebase.database().ref('safetyfeud');
+
+gameRef.on('value', snap => {
+  const data = snap.val() || {};
+
+  document.getElementById('questionHeader').textContent = data.question || "Waiting for question...";
+
+  let totalA = 0, totalB = 0;
+
+  if (data.answers && Array.isArray(data.answers)) {
+    data.answers.forEach((ans, i) => {
+      const idx = i + 1;
+      const scoreA = ans.winner === 'A' ? ans.points : '';
+      const scoreB = ans.winner === 'B' ? ans.points : '';
+
+      if (scoreA) totalA += parseInt(ans.points || 0);
+      if (scoreB) totalB += parseInt(ans.points || 0);
+
+      document.getElementById(`scoreA${idx}`).textContent = scoreA;
+      document.getElementById(`scoreB${idx}`).textContent = scoreB;
+      document.getElementById(`answer${idx}`).textContent = ans.revealed ? ans.text.toUpperCase() : '';
+      document.getElementById(`answer${idx}`).classList.toggle('revealed', ans.revealed);
+    });
+  } else {
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById(`scoreA${i}`).textContent = '';
+      document.getElementById(`scoreB${i}`).textContent = '';
+      document.getElementById(`answer${i}`).textContent = '';
+      document.getElementById(`answer${i}`).classList.remove('revealed');
+    }
+  }
+
+  document.getElementById('totalA').textContent = totalA;
+  document.getElementById('totalB').textContent = totalB;
+
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`strikeA${i}`).classList.toggle('active', (data.strikesA || 0) >= i);
+    document.getElementById(`strikeB${i}`).classList.toggle('active', (data.strikesB || 0) >= i);
+  }
+});
+</script>
+</body>
+</html>
