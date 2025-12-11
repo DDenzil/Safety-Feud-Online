@@ -114,12 +114,12 @@ firebase.initializeApp(firebaseConfig);
 const gameRef = firebase.database().ref('safetyfeud');
 
 const questions = [
-  { q: "Name a common type of PPE", a: ["Safety Helmet","Safety Glasses","Gloves","Steel Toe Boots","High-Vis Vest"], p: [38,25,18,12,7] },
-  { q: "Name something that must be reported immediately", a: ["Accident/Injury","Near Miss","Unsafe Condition","Chemical Spill","Fire"], p: [45,30,15,6,4] },
-  { q: "Name a step in the hierarchy of control", a: ["Elimination","Substitution","Engineering Controls","Administrative","PPE"], p: [40,25,15,12,8] },
-  { q: "Name a common fire extinguisher type", a: ["Water","CO2","Foam","Dry Powder","Wet Chemical"], p: [30,28,20,15,7] },
-  { q: "Name a common safety sign meaning", a: ["Red = Prohibition","Yellow = Warning","Blue = Mandatory","Green = Safe","White = Information"], p: [35,30,20,10,5] },
-  { q: "Name a reason for wearing PPE", a: ["Protect from injury","Legal requirement","Reduce risk","Company policy","Comfort"], p: [40,20,18,12,10] }
+  { q: "Name something people worry about when eatin from a buffet", a: ["Gaining Weight","Food Availability","Food Options","Unknown ingredients/ allergies","Food hygiene"], p: [36,27,18,11,8] },
+  { q: "Name something people must NOT do during an evacuation", a: ["Panic","Run and push","Go back for belongings","Ignore Instructions","Use Elevators"], p: [38,24,18,12,8] },
+  { q: "Name something that makes training boring", a: ["Long presentations","Too much theory","No Interaction","Repeating Old Content","Poor Trainer"], p: [36,25,17,13,9] },
+  { q: "Name a body part most often injured at work", a: ["Hand/ Fingers","Back","Legs/ Feet","Eyes","Head"], p: [36,24,19,13,8] },
+  { q: "Name something that can get you hacked", a: ["Clicking phising emails","Weak Passwords","Using Public WiFI","Using Unknown USBs","Fake apps/ software"], p: [37,25,16,12,10] },
+  { q: "Name something that shows that a company cares about quality", a: ["Certifications (ISO etc.)","Employee Training","Clean & Organized Workplace","Regular Audits","Customer feedback system"], p: [30,26,18,15,11] }
 ];
 
 let currentQuestionIndex = null;
@@ -256,3 +256,4 @@ function resetGame() {
 </script>
 </body>
 </html>
+v
